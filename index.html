@@ -29,7 +29,7 @@ html,
 body{
   margin:0;
   min-height:100%;
-  background:transparent;
+  background:#000;
   color:#111;
   font-family:Arial,Helvetica,sans-serif;
 }
@@ -330,6 +330,49 @@ body::before{
   }
 }
 </style>
+
+<style id="black-white-theme">
+html, body {
+  background: #000 !important;
+  color: #fff !important;
+}
+body::before {
+  display: none !important;
+}
+.demo, .games-page {
+  background: transparent !important;
+}
+.game-card, .nav-pill {
+  background: #fff !important;
+  color: #111 !important;
+  border: 1px solid #bdbdbd !important;
+  box-shadow: none !important;
+}
+.game-card * {
+  color: #111 !important;
+}
+.nav-item {
+  color: #555 !important;
+}
+.nav-item.active {
+  color: #111 !important;
+}
+.bottom-nav {
+  background: transparent !important;
+}
+.bottom-nav::before {
+  display: none !important;
+}
+.profile {
+  background: #fff !important;
+  border: 1px solid #bdbdbd !important;
+}
+.profile .fallback {
+  background: #777 !important;
+  color: #fff !important;
+}
+</style>
+
 </head>
 
 
