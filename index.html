@@ -332,44 +332,94 @@ body::before{
 </style>
 
 <style id="black-white-theme">
+/* Чёрный фон + сохраняем оригинальный рисунок */
 html, body {
-  background: #000 !important;
-  color: #fff !important;
+  background:#000 !important;
+  color:#fff !important;
 }
 body::before {
-  display: none !important;
+  display:block !important;
+  background-color:#fff !important;
+  opacity:.28 !important;
+  z-index:0 !important;
 }
+
+/* Весь интерфейс поверх рисунка */
 .demo, .games-page {
-  background: transparent !important;
+  background:transparent !important;
+  color:#fff !important;
 }
-.game-card, .nav-pill {
-  background: #fff !important;
-  color: #111 !important;
-  border: 1px solid #bdbdbd !important;
-  box-shadow: none !important;
+.demo h2, .demo p,
+.games-page h1, .games-page h2, .games-page p,
+.game-info, .game-info * {
+  color:#fff !important;
+}
+
+/* Карточки — прозрачные, белая обводка и белый текст */
+.game-card {
+  background:rgba(0,0,0,.16) !important;
+  color:#fff !important;
+  border:1px solid rgba(255,255,255,.9) !important;
+  box-shadow:0 0 0 1px rgba(255,255,255,.08), 0 8px 28px rgba(0,0,0,.35) !important;
 }
 .game-card * {
-  color: #111 !important;
+  color:#fff !important;
 }
-.nav-item {
-  color: #555 !important;
+.game-card::before,
+.game-card::after {
+  content:none !important;
 }
-.nav-item.active {
-  color: #111 !important;
+
+/* Бейдж */
+.new-badge {
+  background:rgba(255,255,255,.08) !important;
+  border:1px solid rgba(255,255,255,.9) !important;
+  color:#fff !important;
 }
+
+/* Нижняя панель */
 .bottom-nav {
-  background: transparent !important;
+  background:transparent !important;
 }
 .bottom-nav::before {
-  display: none !important;
+  display:none !important;
 }
+.nav-pill {
+  background:rgba(0,0,0,.72) !important;
+  border:1px solid rgba(255,255,255,.95) !important;
+  box-shadow:0 0 18px rgba(0,0,0,.5) !important;
+}
+.nav-item,
+.nav-item.active {
+  color:#fff !important;
+}
+.nav-item svg {
+  color:#fff !important;
+  stroke:#fff !important;
+}
+.active-indicator {
+  background:rgba(255,255,255,.10) !important;
+  border:1px solid rgba(255,255,255,.85) !important;
+}
+
+/* Профиль */
 .profile {
-  background: #fff !important;
-  border: 1px solid #bdbdbd !important;
+  background:#000 !important;
+  border:2px solid #fff !important;
+  box-shadow:0 0 0 2px rgba(255,255,255,.18), 0 4px 18px rgba(0,0,0,.5) !important;
 }
 .profile .fallback {
-  background: #777 !important;
-  color: #fff !important;
+  background:#000 !important;
+  border:1px solid #fff !important;
+  color:#fff !important;
+}
+
+/* Изображения игр остаются без заливки */
+.game-image,
+.game-image img {
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
 }
 </style>
 
@@ -597,7 +647,7 @@ body::before {
 
 .game-info h2{
   margin:0 0 9px;
-  color:#111 !important;
+  color:#fff !important;
   font-size:26px;
   line-height:1.15;
   font-weight:700;
@@ -605,7 +655,7 @@ body::before {
 
 .game-info p{
   margin:10px 0 0;
-  color:#111 !important;
+  color:#fff !important;
   font-size:16px;
   line-height:1.4;
   font-weight:400;
@@ -619,7 +669,7 @@ body::before {
   border-radius:14px;
   background:rgba(120,120,120,.18) !important;
   border:1px solid rgba(120,120,120,.35);
-  color:#111 !important;
+  color:#fff !important;
   font-size:12px;
   line-height:1;
   font-weight:600;
