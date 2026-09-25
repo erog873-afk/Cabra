@@ -525,186 +525,195 @@ body::before{
   </svg>
 
 
-<!-- ================= ИГРЫ ================= -->
+<!-- ========================= ИГРЫ ========================= -->
 <style>
 .games-page{
-  display:none;
-  min-height:calc(100vh - 110px);
-  padding:24px 16px 130px;
-  max-width:600px;
-  margin:0 auto;
-}
-
-.games-page.is-active{
   display:block;
-}
-
-.games-page .CardContainer--item{
   width:100%;
-  margin-bottom:12px;
-  background:transparent;
-}
-
-.games-page .Card--container{
-  border-radius:18px;
-  overflow:hidden;
-  color:#fff;
-  box-shadow:none;
-  border:0;
+  box-sizing:border-box;
+  padding:18px 16px 130px;
+  margin:0 auto;
   background:transparent !important;
 }
 
-.games-page .GameCard--container{
+/* Карточки полностью прозрачные: фон сайта остаётся тем же */
+.game-card{
+  position:relative;
+  width:100%;
   min-height:150px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  position:relative;
+  margin:0 0 22px 0;
+  box-sizing:border-box;
   overflow:hidden;
-  border-radius:18px;
-  padding:16px 24px;
+  background:transparent !important;
+  border:1px solid rgba(120,120,120,.62);
+  border-radius:24px;
+  box-shadow:none !important;
 }
 
-.games-page .GameCard--info{
+.game-card::before,
+.game-card::after{
+  content:none !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+
+.game-info{
   position:relative;
-  z-index:2;
-  max-width:65%;
+  z-index:5;
+  width:60%;
+  padding:25px 0 25px 28px;
+  box-sizing:border-box;
 }
 
-.games-page .GameCard--info h2{
-  margin:0;
-  color:#fff;
-  font-size:22px;
+.game-info h2{
+  margin:0 0 10px;
+  color:#8b8b8b !important;
+  font-size:28px;
   line-height:1.15;
+  font-weight:700;
+  text-shadow:none !important;
 }
 
-.games-page .GameCard--info p{
-  margin:8px 0 0;
-  color:rgba(255,255,255,.86);
-  font-size:14px;
-  line-height:1.35;
+.game-info p{
+  margin:12px 0 0;
+  color:#8b8b8b !important;
+  font-size:17px;
+  line-height:1.45;
+  font-weight:400;
+  text-shadow:none !important;
 }
 
-.games-page .GameCard--before{
+.new-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:6px 15px;
+  border-radius:15px;
+  color:#8b8b8b !important;
+  background:rgba(130,130,130,.16) !important;
+  border:1px solid rgba(130,130,130,.35);
+  font-size:13px;
+  line-height:1;
+  font-weight:600;
+  white-space:nowrap;
+}
+
+.game-image{
   position:absolute;
-  right:0;
-  bottom:-8px;
+  z-index:3;
+  right:8px;
+  top:50%;
   width:145px;
   height:145px;
+  transform:translateY(-50%);
   display:flex;
   align-items:center;
   justify-content:center;
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
   pointer-events:none;
 }
 
-.games-page .GameCard--before img{
+.game-image img{
+  display:block;
   width:100%;
   height:100%;
   object-fit:contain;
-  display:block;
+  background:transparent !important;
+  border:0 !important;
+  outline:none !important;
+  box-shadow:none !important;
 }
 
-.games-page .plinko-card .GameCard--container{
-  background:radial-gradient(50% 100%,rgb(37,155,110),rgb(12,96,74) 100%);
+.plinko-card,
+.crash-card,
+.arena-card{
+  background:transparent !important;
+  box-shadow:none !important;
 }
 
-.games-page .crash-card .GameCard--container{
-  background:radial-gradient(50% 100%,rgb(37,72,155),rgb(44,16,155) 100%);
-}
-
-.games-page .arena-card .GameCard--container{
-  background:radial-gradient(50% 100%,rgb(127,70,185),rgb(91,34,151) 100%);
-}
-
-.games-page .game-new-badge{
-  display:inline-flex;
-  align-items:center;
-  padding:3px 8px;
-  margin-left:8px;
-  border-radius:999px;
-  background:rgba(255,255,255,.22);
-  color:#fff;
-  font-size:11px;
-  font-weight:700;
-  line-height:1;
-  letter-spacing:.3px;
-  text-transform:uppercase;
-  vertical-align:middle;
-}
-
-@media(max-width:380px){
+@media(max-width:420px){
   .games-page{
-    padding-left:12px;
-    padding-right:12px;
+    padding:18px 16px 130px;
   }
 
-  .games-page .GameCard--container{
-    min-height:140px;
-    padding:14px 18px;
+  .game-card{
+    min-height:150px;
+    border-radius:24px;
   }
 
-  .games-page .GameCard--info h2{
-    font-size:20px;
+  .game-info{
+    width:61%;
+    padding:24px 0 24px 26px;
   }
 
-  .games-page .GameCard--before{
-    width:125px;
-    height:125px;
+  .game-info h2{
+    font-size:27px;
+  }
+
+  .game-info p{
+    font-size:17px;
+  }
+
+  .game-image{
+    right:5px;
+    width:140px;
+    height:140px;
+  }
+}
+
+@media(max-width:360px){
+  .game-info{
+    width:62%;
+    padding-left:22px;
+  }
+
+  .game-info h2{
+    font-size:24px;
+  }
+
+  .game-info p{
+    font-size:15px;
+  }
+
+  .game-image{
+    width:120px;
+    height:120px;
   }
 }
 </style>
 
-<div class="games-page is-active" data-page-content="games">
+<div id="gamesPage" class="games-page" data-page-content="games">
 
-  <div class="CardContainer--item plinko-card">
-    <div class="Card--container Card--padding-medium" style="padding:16px 24px;">
-      <div class="GameCard--container">
-        <div class="GameCard--info">
-          <div class="Flex--container CellContainer--item" style="gap:8px;width:max-content;align-items:center;">
-            <h2>Plinko</h2>
-            <span class="game-new-badge">Новое</span>
-          </div>
-          <div style="margin-bottom:4px;"></div>
-          <p>Бросайте шарик и ловите множитель</p>
-        </div>
-        <div class="GameCard--before">
-          <img alt="" src="https://client.gorilla-case.app/static/media/plinko.eb7c059a6695e2bfb4c4.png" style="aspect-ratio:1 / 1;"/>
-        </div>
-      </div>
+  <div class="game-card plinko-card">
+    <div class="game-info">
+      <h2>Plinko</h2>
+      <span class="new-badge">НОВОЕ</span>
+      <p>Бросайте шарик и ловите множитель</p>
+    </div>
+    <div class="game-image">
+      <img src="https://client.gorilla-case.app/static/media/plinko.eb7c059a6695e2bfb4c4.png" alt="Plinko">
     </div>
   </div>
 
-  <div class="CardContainer--item crash-card">
-    <div class="Card--container Card--padding-medium" style="padding:16px 24px;">
-      <div class="GameCard--container">
-        <div class="GameCard--info">
-          <div class="Flex--container CellContainer--item" style="gap:8px;width:max-content;">
-            <h2>Краш</h2>
-          </div>
-          <div style="margin-bottom:4px;"></div>
-          <p>Успейте забрать выигрыш до взрыва ракеты</p>
-        </div>
-        <div class="GameCard--before">
-          <img alt="" src="https://client.gorilla-case.app/static/media/crash.f5ead9db0ec446cd20ea.png" style="aspect-ratio:1 / 1;"/>
-        </div>
-      </div>
+  <div class="game-card crash-card">
+    <div class="game-info">
+      <h2>Краш</h2>
+      <p>Успейте забрать выигрыш до взрыва ракеты</p>
+    </div>
+    <div class="game-image">
+      <img src="/static/media/crash.f5ead9db0ec446cd20ea.png" alt="Краш">
     </div>
   </div>
 
-  <div class="CardContainer--item arena-card">
-    <div class="Card--container Card--padding-medium" style="padding:16px 24px;">
-      <div class="GameCard--container">
-        <div class="GameCard--info">
-          <div class="Flex--container CellContainer--item" style="gap:8px;width:max-content;">
-            <h2>Арена</h2>
-          </div>
-          <div style="margin-bottom:4px;"></div>
-          <p>Сражайтесь против других игроков</p>
-        </div>
-        <div class="GameCard--before">
-          <img alt="" src="https://client.gorilla-case.app/static/media/arena.3b4c5b035d2b752f7a1e.png" style="aspect-ratio:1 / 1;"/>
-        </div>
-      </div>
+  <div class="game-card arena-card">
+    <div class="game-info">
+      <h2>Арена</h2>
+      <p>Сражайтесь против других игроков</p>
+    </div>
+    <div class="game-image">
+      <img src="/static/media/arena.3b4c5b035d2b752f7a1e.png" alt="Арена">
     </div>
   </div>
 
@@ -825,17 +834,16 @@ items.forEach(item => {
 
     item.classList.add('active');
 
+    const gamesPage = document.getElementById('gamesPage');
+    if (gamesPage) {
+      gamesPage.style.display =
+        item.dataset.page === 'games' ? 'block' : 'none';
+    }
+
     item.setAttribute(
       'aria-current',
       'page'
     );
-
-    const page = item.dataset.page;
-    const gamesPage = document.querySelector('[data-page-content="games"]');
-
-    if(gamesPage){
-      gamesPage.classList.toggle('is-active', page === 'games');
-    }
 
     requestAnimationFrame(() => {
       moveIndicator(item);
@@ -934,7 +942,7 @@ requestAnimationFrame(() => {
 
   }
 
-
+ф
   if(
     user &&
     user.photo_url
@@ -980,4 +988,4 @@ requestAnimationFrame(() => {
 </script>
 
 </body>
-</html>
+</html>й
