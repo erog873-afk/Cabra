@@ -528,10 +528,15 @@ body::before{
 <!-- ================= ИГРЫ ================= -->
 <style>
 .games-page{
+  display:none;
   min-height:calc(100vh - 110px);
   padding:24px 16px 130px;
   max-width:600px;
   margin:0 auto;
+}
+
+.games-page.is-active{
+  display:block;
 }
 
 .games-page .CardContainer--item{
@@ -649,7 +654,7 @@ body::before{
 }
 </style>
 
-<div class="games-page" data-page-content="games">
+<div class="games-page is-active" data-page-content="games">
 
   <div class="CardContainer--item plinko-card">
     <div class="Card--container Card--padding-medium" style="padding:16px 24px;">
@@ -680,7 +685,7 @@ body::before{
           <p>Успейте забрать выигрыш до взрыва ракеты</p>
         </div>
         <div class="GameCard--before">
-          <img alt="" src="/static/media/crash.f5ead9db0ec446cd20ea.png" style="aspect-ratio:1 / 1;"/>
+          <img alt="" src="https://client.gorilla-case.app/static/media/crash.f5ead9db0ec446cd20ea.png" style="aspect-ratio:1 / 1;"/>
         </div>
       </div>
     </div>
@@ -697,7 +702,7 @@ body::before{
           <p>Сражайтесь против других игроков</p>
         </div>
         <div class="GameCard--before">
-          <img alt="" src="/static/media/arena.3b4c5b035d2b752f7a1e.png" style="aspect-ratio:1 / 1;"/>
+          <img alt="" src="https://client.gorilla-case.app/static/media/arena.3b4c5b035d2b752f7a1e.png" style="aspect-ratio:1 / 1;"/>
         </div>
       </div>
     </div>
@@ -824,6 +829,13 @@ items.forEach(item => {
       'aria-current',
       'page'
     );
+
+    const page = item.dataset.page;
+    const gamesPage = document.querySelector('[data-page-content="games"]');
+
+    if(gamesPage){
+      gamesPage.classList.toggle('is-active', page === 'games');
+    }
 
     requestAnimationFrame(() => {
       moveIndicator(item);
