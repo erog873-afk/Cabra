@@ -29,13 +29,14 @@ html,
 body{
   margin:0;
   min-height:100%;
-  background:#ffffff;
+  background:#000;
   color:#111;
   font-family:Arial,Helvetica,sans-serif;
 }
 
 body{
   position:relative;
+  isolation:isolate;
 }
 
 /* Фоновый паттерн на весь экран */
@@ -50,7 +51,7 @@ body::before{
 
   pointer-events:none;
 
-  background-color:#b8b8b8;
+  background-color:var(--subtitle);
 
   mask-image:url(#giftBgMask);
   -webkit-mask-image:url(#giftBgMask);
@@ -61,7 +62,7 @@ body::before{
   mask-size:100% 100%;
   -webkit-mask-size:100% 100%;
 
-  opacity:.28;
+  opacity:.35;
 }
 
 /* Основной контейнер */
@@ -113,7 +114,7 @@ body::before{
 }
 
 
-/* Нижняя область прозрачная — фон и рисунок остаются видны */
+/* Светлый фон снизу */
 .bottom-nav::before{
   content:none;
 }
@@ -126,11 +127,11 @@ body::before{
   display:flex;
   align-items:center;
 
-  border:1px solid #ffffff;
+  border:1px solid var(--separator);
 
   border-radius:999px;
 
-  background:#3b3b3b;
+  background:rgba(255,255,255,.85);
 
   padding:8px 4px;
 
@@ -151,9 +152,9 @@ body::before{
 
   border-radius:999px;
 
-  background:#555555;
+  background:rgba(0,0,0,.05);
 
-  border:1px solid #ffffff;
+  border:1px solid rgba(0,0,0,.06);
 
   transition:
     all .3s ease-out;
@@ -184,7 +185,7 @@ body::before{
 
   min-width:72px;
 
-  color:#ffffff;
+  color:var(--subtitle);
 
   text-decoration:none;
 
@@ -192,7 +193,7 @@ body::before{
 }
 
 .nav-item.active{
-  color:#ffffff;
+  color:var(--button);
 }
 
 
@@ -225,6 +226,7 @@ body::before{
 
 .profile{
   position:relative;
+  z-index:51;
 
   display:flex;
 
@@ -239,15 +241,15 @@ body::before{
 
   border-radius:50%;
 
-  background:#3b3b3b;
+  background:rgba(255,255,255,.92);
 
-  border:2px solid #ffffff;
+  border:2px solid rgba(0,0,0,.10);
 
   padding:5px;
 
   box-shadow:
-    0 2px 16px rgba(0,0,0,.15),
-    0 0 0 2px rgba(255,255,255,.9);
+    0 2px 16px rgba(0,0,0,.10),
+    0 0 0 3px rgba(255,255,255,.75);
 
   backdrop-filter:blur(20px);
   -webkit-backdrop-filter:blur(20px);
@@ -266,6 +268,8 @@ body::before{
 
 /* Аватар */
 .profile img{
+  position:relative;
+  z-index:2;
   display:block;
 
   width:100%;
@@ -289,7 +293,7 @@ body::before{
   align-items:center;
   justify-content:center;
 
-  background:#555555;
+  background:var(--primary);
 
   color:#fff;
 
@@ -326,6 +330,99 @@ body::before{
   }
 }
 </style>
+
+<style id="black-white-theme">
+/* Чёрный фон + сохраняем оригинальный рисунок */
+html, body {
+  background:#000 !important;
+  color:#fff !important;
+}
+body::before {
+  display:block !important;
+  background-color:#fff !important;
+  opacity:.28 !important;
+  z-index:0 !important;
+}
+
+/* Весь интерфейс поверх рисунка */
+.demo, .games-page {
+  background:transparent !important;
+  color:#fff !important;
+}
+.demo h2, .demo p,
+.games-page h1, .games-page h2, .games-page p,
+.game-info, .game-info * {
+  color:#fff !important;
+}
+
+/* Карточки — прозрачные, белая обводка и белый текст */
+.game-card {
+  background:rgba(0,0,0,.16) !important;
+  color:#fff !important;
+  border:1px solid rgba(255,255,255,.9) !important;
+  box-shadow:0 0 0 1px rgba(255,255,255,.08), 0 8px 28px rgba(0,0,0,.35) !important;
+}
+.game-card * {
+  color:#fff !important;
+}
+.game-card::before,
+.game-card::after {
+  content:none !important;
+}
+
+/* Бейдж */
+.new-badge {
+  background:rgba(255,255,255,.08) !important;
+  border:1px solid rgba(255,255,255,.9) !important;
+  color:#fff !important;
+}
+
+/* Нижняя панель */
+.bottom-nav {
+  background:transparent !important;
+}
+.bottom-nav::before {
+  display:none !important;
+}
+.nav-pill {
+  background:rgba(0,0,0,.72) !important;
+  border:1px solid rgba(255,255,255,.95) !important;
+  box-shadow:0 0 18px rgba(0,0,0,.5) !important;
+}
+.nav-item,
+.nav-item.active {
+  color:#fff !important;
+}
+.nav-item svg {
+  color:#fff !important;
+  stroke:#fff !important;
+}
+.active-indicator {
+  background:rgba(255,255,255,.10) !important;
+  border:1px solid rgba(255,255,255,.85) !important;
+}
+
+/* Профиль */
+.profile {
+  background:#000 !important;
+  border:2px solid #fff !important;
+  box-shadow:0 0 0 2px rgba(255,255,255,.18), 0 4px 18px rgba(0,0,0,.5) !important;
+}
+.profile .fallback {
+  background:#000 !important;
+  border:1px solid #fff !important;
+  color:#fff !important;
+}
+
+/* Изображения игр остаются без заливки */
+.game-image,
+.game-image img {
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+</style>
+
 </head>
 
 
@@ -518,7 +615,7 @@ body::before{
   width:100%;
   max-width:600px;
   margin:0 auto;
-  padding:110px 16px 130px;
+  padding:24px 16px 130px;
   background:transparent !important;
 }
 
@@ -529,8 +626,8 @@ body::before{
   margin:0 0 18px;
   box-sizing:border-box;
   overflow:hidden;
-  background:#3b3b3b !important;
-  border:1px solid #ffffff;
+  background:transparent !important;
+  border:1px solid rgba(120,120,120,.60);
   border-radius:22px;
   box-shadow:none !important;
 }
@@ -550,7 +647,7 @@ body::before{
 
 .game-info h2{
   margin:0 0 9px;
-  color:#ffffff !important;
+  color:#fff !important;
   font-size:26px;
   line-height:1.15;
   font-weight:700;
@@ -558,7 +655,7 @@ body::before{
 
 .game-info p{
   margin:10px 0 0;
-  color:#ffffff !important;
+  color:#fff !important;
   font-size:16px;
   line-height:1.4;
   font-weight:400;
@@ -570,9 +667,9 @@ body::before{
   justify-content:center;
   padding:6px 13px;
   border-radius:14px;
-  background:#555555 !important;
-  border:1px solid #ffffff;
-  color:#ffffff !important;
+  background:rgba(120,120,120,.18) !important;
+  border:1px solid rgba(120,120,120,.35);
+  color:#fff !important;
   font-size:12px;
   line-height:1;
   font-weight:600;
@@ -606,7 +703,6 @@ body::before{
 
 @media(max-width:430px){
   .games-page{
-    padding-top:90px;
     padding-left:16px;
     padding-right:16px;
   }
@@ -743,86 +839,52 @@ body::before{
 <script>
 
 /* ==========================================
-   Переключение активной кнопки
+   Переключение вкладок
    ========================================== */
 
-const items = [
-  ...document.querySelectorAll('.nav-item')
-];
-
-const indicator =
-  document.querySelector('.active-indicator');
-
+const items = [...document.querySelectorAll('.nav-item')];
+const indicator = document.querySelector('.active-indicator');
+const gamesPage = document.getElementById('gamesPage');
 
 function moveIndicator(item){
-
-  if(!item) return;
-
-  indicator.style.width =
-    item.offsetWidth + 'px';
-
-  indicator.style.left =
-    item.offsetLeft + 'px';
+  if(!item || !indicator) return;
+  indicator.style.width = item.offsetWidth + 'px';
+  indicator.style.left = item.offsetLeft + 'px';
 }
 
+function showPage(page){
+  // Сейчас в исходном файле есть только содержимое вкладки «Игры».
+  // Другие кнопки остаются полностью рабочими: активное состояние и
+  // индикатор переключаются, а содержимое игр скрывается, когда выбрана
+  // другая вкладка.
+  if(gamesPage){
+    gamesPage.style.display = page === 'games' ? 'block' : 'none';
+  }
+}
 
 items.forEach(item => {
-
-  item.addEventListener('click', (e) => {
-
-    e.preventDefault();
-
-    items.forEach(x =>
-      x.classList.remove('active')
-    );
-
-    items.forEach(x =>
-      x.removeAttribute('aria-current')
-    );
-
-    item.classList.add('active');
-
-    const gamesPage = document.getElementById('gamesPage');
-    if(gamesPage){
-      gamesPage.style.display = item.dataset.page === 'games' ? 'block' : 'none';
-    }
-
-    item.setAttribute(
-      'aria-current',
-      'page'
-    );
-
-    requestAnimationFrame(() => {
-      moveIndicator(item);
+  item.addEventListener('click', () => {
+    items.forEach(x => {
+      x.classList.remove('active');
+      x.removeAttribute('aria-current');
     });
 
-  });
+    item.classList.add('active');
+    item.setAttribute('aria-current', 'page');
+    showPage(item.dataset.page);
 
+    requestAnimationFrame(() => moveIndicator(item));
+  });
 });
 
-
-window.addEventListener(
-  'resize',
-  () => {
-
-    moveIndicator(
-      document.querySelector(
-        '.nav-item.active'
-      )
-    );
-
-  }
-);
-
+window.addEventListener('resize', () => {
+  moveIndicator(document.querySelector('.nav-item.active'));
+});
 
 requestAnimationFrame(() => {
-
-  moveIndicator(
-    document.querySelector(
-      '.nav-item.active'
-    )
-  );
-
+  const active = document.querySelector('.nav-item.active');
+  showPage(active ? active.dataset.page : 'games');
+  moveIndicator(active);
 });
 
 
@@ -831,105 +893,41 @@ requestAnimationFrame(() => {
    ========================================== */
 
 (function(){
-
-  const profileBtn =
-    document.getElementById(
-      'profileBtn'
-    );
+  const profileBtn = document.getElementById('profileBtn');
+  if(!profileBtn) return;
 
   let user = null;
 
-
   try{
-
-    if(
-      window.Telegram &&
-      window.Telegram.WebApp
-    ){
-
-      window.Telegram.WebApp.ready();
-
-      user =
-        window.Telegram.WebApp
-          .initDataUnsafe &&
-        window.Telegram.WebApp
-          .initDataUnsafe.user;
-
+    if(window.Telegram && window.Telegram.WebApp){
+      const tg = window.Telegram.WebApp;
+      tg.ready();
+      tg.expand();
+      user = tg.initDataUnsafe && tg.initDataUnsafe.user;
     }
-
   }catch(e){}
 
-
   function showFallback(name){
-
-    const letter =
-      (name || '?')
-        .trim()
-        .charAt(0)
-        .toUpperCase();
-
-
-    const div =
-      document.createElement(
-        'div'
-      );
-
-    div.className =
-      'fallback';
-
-    div.textContent =
-      letter;
-
-
+    const letter = (name || '?').trim().charAt(0).toUpperCase() || '?';
     profileBtn.innerHTML = '';
-
-    profileBtn.appendChild(
-      div
-    );
-
+    const div = document.createElement('div');
+    div.className = 'fallback';
+    div.textContent = letter;
+    profileBtn.appendChild(div);
   }
 
-
-  if(
-    user &&
-    user.photo_url
-  ){
-
-    const img =
-      document.createElement(
-        'img'
-      );
-
-    img.alt =
-      'Профиль';
-
-    img.src =
-      user.photo_url;
-
-
-    img.onerror =
-      () => {
-
-        showFallback(
-          user.first_name
-        );
-
-      };
-
-
-    profileBtn.appendChild(
-      img
-    );
-
+  if(user && user.photo_url){
+    const img = document.createElement('img');
+    img.alt = 'Профиль';
+    img.src = user.photo_url;
+    img.referrerPolicy = 'no-referrer';
+    img.onload = function(){ profileBtn.classList.add('has-avatar'); };
+    img.onerror = function(){ showFallback(user.first_name); };
+    profileBtn.innerHTML = '';
+    profileBtn.appendChild(img);
   }else{
-
-    showFallback(
-      user &&
-      user.first_name
-    );
-
+    showFallback(user && user.first_name);
   }
-
 })();
 
 </script>
