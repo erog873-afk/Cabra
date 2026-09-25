@@ -36,6 +36,7 @@ body{
 
 body{
   position:relative;
+  isolation:isolate;
 }
 
 /* Фоновый паттерн на весь экран */
@@ -46,7 +47,7 @@ body::before{
 
   inset:0;
 
-  z-index:-1;
+  z-index:0;
 
   pointer-events:none;
 
@@ -113,24 +114,7 @@ body::before{
 
 /* Светлый фон снизу */
 .bottom-nav::before{
-  content:"";
-
-  position:absolute;
-
-  left:0;
-  right:0;
-  bottom:0;
-
-  height:110px;
-
-  background:
-    linear-gradient(
-      to bottom,
-      transparent,
-      #ffffff
-    );
-
-  pointer-events:none;
+  content:none;
 }
 
 
@@ -340,6 +324,127 @@ body::before{
     min-height:66px;
   }
 }
+
+
+/* =========================
+   ИГРЫ — ПРОЗРАЧНЫЕ КАРТОЧКИ
+   ========================= */
+.games-page{
+  position:relative;
+  z-index:1;
+  width:100%;
+  min-height:100vh;
+  padding:24px 16px 120px;
+  max-width:600px;
+  margin:0 auto;
+  background:transparent !important;
+}
+
+.game-card{
+  position:relative;
+  width:100%;
+  min-height:150px;
+  margin:0 0 22px 0;
+  box-sizing:border-box;
+  background:transparent !important;
+  border:1px solid rgba(115,115,115,.65);
+  border-radius:24px;
+  overflow:hidden;
+  box-shadow:none !important;
+}
+
+.game-info{
+  position:relative;
+  z-index:5;
+  width:61%;
+  padding:25px 0 25px 28px;
+  box-sizing:border-box;
+}
+
+.game-info h2{
+  margin:0 0 10px 0;
+  color:#333 !important;
+  font-size:28px;
+  line-height:1.15;
+  font-weight:700;
+  text-shadow:none;
+}
+
+.game-info p{
+  margin:12px 0 0 0;
+  color:#333 !important;
+  font-size:17px;
+  line-height:1.45;
+  font-weight:400;
+  text-shadow:none;
+}
+
+.new-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:6px 15px;
+  margin:0;
+  border-radius:15px;
+  color:#333 !important;
+  background:rgba(255,255,255,.35) !important;
+  border:1px solid rgba(115,115,115,.55);
+  font-size:13px;
+  line-height:1;
+  font-weight:600;
+  white-space:nowrap;
+}
+
+.game-image{
+  position:absolute;
+  z-index:3;
+  right:8px;
+  top:50%;
+  width:145px;
+  height:145px;
+  transform:translateY(-50%);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+
+.game-image img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  background:transparent !important;
+  border:0 !important;
+  outline:none !important;
+  box-shadow:none !important;
+}
+
+.game-card::before,
+.game-card::after{
+  content:none !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+
+@media(max-width:420px){
+  .games-page{padding:18px 16px 120px;}
+  .game-card{min-height:150px;margin-bottom:22px;border-radius:24px;}
+  .game-info{width:61%;padding:24px 0 24px 26px;}
+  .game-info h2{font-size:27px;}
+  .game-info p{font-size:17px;line-height:1.45;}
+  .game-image{right:5px;width:140px;height:140px;}
+}
+
+@media(max-width:360px){
+  .game-info{width:62%;padding-left:22px;}
+  .game-info h2{font-size:24px;}
+  .game-info p{font-size:15px;}
+  .game-image{width:120px;height:120px;}
+}
+
 </style>
 </head>
 
@@ -525,83 +630,76 @@ body::before{
   </svg>
 
 
-<!-- ========================= ИГРЫ ========================= -->
 <style>
 .games-page{
   display:block;
   width:100%;
-  box-sizing:border-box;
-  padding:18px 16px 130px;
+  max-width:600px;
   margin:0 auto;
+  padding:24px 16px 130px;
   background:transparent !important;
 }
 
-/* Карточки полностью прозрачные: фон сайта остаётся тем же */
 .game-card{
   position:relative;
   width:100%;
   min-height:150px;
-  margin:0 0 22px 0;
+  margin:0 0 18px;
   box-sizing:border-box;
   overflow:hidden;
   background:transparent !important;
-  border:1px solid rgba(120,120,120,.62);
-  border-radius:24px;
+  border:1px solid rgba(120,120,120,.60);
+  border-radius:22px;
   box-shadow:none !important;
 }
 
-.game-card::before,
-.game-card::after{
+.game-card::before,.game-card::after{
   content:none !important;
   background:transparent !important;
-  box-shadow:none !important;
 }
 
 .game-info{
   position:relative;
-  z-index:5;
-  width:60%;
-  padding:25px 0 25px 28px;
+  z-index:2;
+  width:62%;
+  padding:24px 0 24px 24px;
   box-sizing:border-box;
 }
 
 .game-info h2{
-  margin:0 0 10px;
-  color:#8b8b8b !important;
-  font-size:28px;
+  margin:0 0 9px;
+  color:#777 !important;
+  font-size:26px;
   line-height:1.15;
   font-weight:700;
-  text-shadow:none !important;
 }
 
 .game-info p{
-  margin:12px 0 0;
-  color:#8b8b8b !important;
-  font-size:17px;
-  line-height:1.45;
+  margin:10px 0 0;
+  color:#777 !important;
+  font-size:16px;
+  line-height:1.4;
   font-weight:400;
-  text-shadow:none !important;
 }
 
 .new-badge{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  padding:6px 15px;
-  border-radius:15px;
-  color:#8b8b8b !important;
-  background:rgba(130,130,130,.16) !important;
-  border:1px solid rgba(130,130,130,.35);
-  font-size:13px;
+  padding:6px 13px;
+  border-radius:14px;
+  background:rgba(120,120,120,.18) !important;
+  border:1px solid rgba(120,120,120,.35);
+  color:#777 !important;
+  font-size:12px;
   line-height:1;
   font-weight:600;
-  white-space:nowrap;
 }
 
 .game-image{
   position:absolute;
-  z-index:3;
-  right:8px;
+  z-index:1;
+  right:5px;
   top:50%;
   width:145px;
   height:145px;
@@ -612,7 +710,6 @@ body::before{
   background:transparent !important;
   border:0 !important;
   box-shadow:none !important;
-  pointer-events:none;
 }
 
 .game-image img{
@@ -622,68 +719,76 @@ body::before{
   object-fit:contain;
   background:transparent !important;
   border:0 !important;
-  outline:none !important;
   box-shadow:none !important;
 }
 
-.plinko-card,
-.crash-card,
-.arena-card{
-  background:transparent !important;
-  box-shadow:none !important;
-}
-
-@media(max-width:420px){
+@media(max-width:430px){
   .games-page{
-    padding:18px 16px 130px;
+    padding-left:16px;
+    padding-right:16px;
   }
-
   .game-card{
     min-height:150px;
-    border-radius:24px;
+    border-radius:22px;
   }
-
   .game-info{
     width:61%;
-    padding:24px 0 24px 26px;
+    padding-left:23px;
   }
-
   .game-info h2{
-    font-size:27px;
+    font-size:25px;
   }
-
-  .game-info p{
-    font-size:17px;
-  }
-
-  .game-image{
-    right:5px;
-    width:140px;
-    height:140px;
-  }
-}
-
-@media(max-width:360px){
-  .game-info{
-    width:62%;
-    padding-left:22px;
-  }
-
-  .game-info h2{
-    font-size:24px;
-  }
-
   .game-info p{
     font-size:15px;
   }
-
   .game-image{
-    width:120px;
-    height:120px;
+    width:135px;
+    height:135px;
+    right:4px;
   }
 }
 </style>
 
+<div id="gamesPage" class="games-page" data-page-content="games">
+
+  <div class="game-card plinko-card">
+    <div class="game-info">
+      <h2>Plinko</h2>
+      <span class="new-badge">НОВОЕ</span>
+      <p>Бросайте шарик и ловите множитель</p>
+    </div>
+    <div class="game-image">
+      <img src="https://client.gorilla-case.app/static/media/plinko.eb7c059a6695e2bfb4c4.png" alt="Plinko">
+    </div>
+  </div>
+
+  <div class="game-card crash-card">
+    <div class="game-info">
+      <h2>Краш</h2>
+      <p>Успейте забрать выигрыш до взрыва ракеты</p>
+    </div>
+    <div class="game-image">
+      <img src="/static/media/crash.f5ead9db0ec446cd20ea.png" alt="Краш">
+    </div>
+  </div>
+
+  <div class="game-card arena-card">
+    <div class="game-info">
+      <h2>Арена</h2>
+      <p>Сражайтесь против других игроков</p>
+    </div>
+    <div class="game-image">
+      <img src="/static/media/arena.3b4c5b035d2b752f7a1e.png" alt="Арена">
+    </div>
+  </div>
+
+</div>
+
+
+
+<!-- =========================
+     СТРАНИЦА ИГР
+     ========================= -->
 <div id="gamesPage" class="games-page" data-page-content="games">
 
   <div class="game-card plinko-card">
@@ -835,9 +940,8 @@ items.forEach(item => {
     item.classList.add('active');
 
     const gamesPage = document.getElementById('gamesPage');
-    if (gamesPage) {
-      gamesPage.style.display =
-        item.dataset.page === 'games' ? 'block' : 'none';
+    if(gamesPage){
+      gamesPage.style.display = item.dataset.page === 'games' ? 'block' : 'none';
     }
 
     item.setAttribute(
@@ -848,6 +952,12 @@ items.forEach(item => {
     requestAnimationFrame(() => {
       moveIndicator(item);
     });
+
+    const gamesPage = document.getElementById('gamesPage');
+    if(gamesPage){
+      gamesPage.style.display =
+        item.dataset.page === 'games' ? 'block' : 'none';
+    }
 
   });
 
@@ -870,11 +980,14 @@ window.addEventListener(
 
 requestAnimationFrame(() => {
 
-  moveIndicator(
-    document.querySelector(
-      '.nav-item.active'
-    )
-  );
+  const activeItem = document.querySelector('.nav-item.active');
+  moveIndicator(activeItem);
+
+  const gamesPage = document.getElementById('gamesPage');
+  if(gamesPage){
+    gamesPage.style.display =
+      activeItem && activeItem.dataset.page === 'games' ? 'block' : 'none';
+  }
 
 });
 
@@ -942,7 +1055,7 @@ requestAnimationFrame(() => {
 
   }
 
-ф
+
   if(
     user &&
     user.photo_url
@@ -988,4 +1101,4 @@ requestAnimationFrame(() => {
 </script>
 
 </body>
-</html>й
+</html>
