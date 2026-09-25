@@ -524,6 +524,187 @@ body::before{
     </defs>
   </svg>
 
+
+<!-- ================= ИГРЫ ================= -->
+<style>
+.games-page{
+  min-height:calc(100vh - 110px);
+  padding:24px 16px 130px;
+  max-width:600px;
+  margin:0 auto;
+}
+
+.games-page .CardContainer--item{
+  width:100%;
+  margin-bottom:12px;
+  background:transparent;
+}
+
+.games-page .Card--container{
+  border-radius:18px;
+  overflow:hidden;
+  color:#fff;
+  box-shadow:none;
+  border:0;
+  background:transparent !important;
+}
+
+.games-page .GameCard--container{
+  min-height:150px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  position:relative;
+  overflow:hidden;
+  border-radius:18px;
+  padding:16px 24px;
+}
+
+.games-page .GameCard--info{
+  position:relative;
+  z-index:2;
+  max-width:65%;
+}
+
+.games-page .GameCard--info h2{
+  margin:0;
+  color:#fff;
+  font-size:22px;
+  line-height:1.15;
+}
+
+.games-page .GameCard--info p{
+  margin:8px 0 0;
+  color:rgba(255,255,255,.86);
+  font-size:14px;
+  line-height:1.35;
+}
+
+.games-page .GameCard--before{
+  position:absolute;
+  right:0;
+  bottom:-8px;
+  width:145px;
+  height:145px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+}
+
+.games-page .GameCard--before img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  display:block;
+}
+
+.games-page .plinko-card .GameCard--container{
+  background:radial-gradient(50% 100%,rgb(37,155,110),rgb(12,96,74) 100%);
+}
+
+.games-page .crash-card .GameCard--container{
+  background:radial-gradient(50% 100%,rgb(37,72,155),rgb(44,16,155) 100%);
+}
+
+.games-page .arena-card .GameCard--container{
+  background:radial-gradient(50% 100%,rgb(127,70,185),rgb(91,34,151) 100%);
+}
+
+.games-page .game-new-badge{
+  display:inline-flex;
+  align-items:center;
+  padding:3px 8px;
+  margin-left:8px;
+  border-radius:999px;
+  background:rgba(255,255,255,.22);
+  color:#fff;
+  font-size:11px;
+  font-weight:700;
+  line-height:1;
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  vertical-align:middle;
+}
+
+@media(max-width:380px){
+  .games-page{
+    padding-left:12px;
+    padding-right:12px;
+  }
+
+  .games-page .GameCard--container{
+    min-height:140px;
+    padding:14px 18px;
+  }
+
+  .games-page .GameCard--info h2{
+    font-size:20px;
+  }
+
+  .games-page .GameCard--before{
+    width:125px;
+    height:125px;
+  }
+}
+</style>
+
+<div class="games-page" data-page-content="games">
+
+  <div class="CardContainer--item plinko-card">
+    <div class="Card--container Card--padding-medium" style="padding:16px 24px;">
+      <div class="GameCard--container">
+        <div class="GameCard--info">
+          <div class="Flex--container CellContainer--item" style="gap:8px;width:max-content;align-items:center;">
+            <h2>Plinko</h2>
+            <span class="game-new-badge">Новое</span>
+          </div>
+          <div style="margin-bottom:4px;"></div>
+          <p>Бросайте шарик и ловите множитель</p>
+        </div>
+        <div class="GameCard--before">
+          <img alt="" src="https://client.gorilla-case.app/static/media/plinko.eb7c059a6695e2bfb4c4.png" style="aspect-ratio:1 / 1;"/>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="CardContainer--item crash-card">
+    <div class="Card--container Card--padding-medium" style="padding:16px 24px;">
+      <div class="GameCard--container">
+        <div class="GameCard--info">
+          <div class="Flex--container CellContainer--item" style="gap:8px;width:max-content;">
+            <h2>Краш</h2>
+          </div>
+          <div style="margin-bottom:4px;"></div>
+          <p>Успейте забрать выигрыш до взрыва ракеты</p>
+        </div>
+        <div class="GameCard--before">
+          <img alt="" src="/static/media/crash.f5ead9db0ec446cd20ea.png" style="aspect-ratio:1 / 1;"/>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="CardContainer--item arena-card">
+    <div class="Card--container Card--padding-medium" style="padding:16px 24px;">
+      <div class="GameCard--container">
+        <div class="GameCard--info">
+          <div class="Flex--container CellContainer--item" style="gap:8px;width:max-content;">
+            <h2>Арена</h2>
+          </div>
+          <div style="margin-bottom:4px;"></div>
+          <p>Сражайтесь против других игроков</p>
+        </div>
+        <div class="GameCard--before">
+          <img alt="" src="/static/media/arena.3b4c5b035d2b752f7a1e.png" style="aspect-ratio:1 / 1;"/>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
 <div class="bottom-nav">
 
 
