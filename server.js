@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 const { getSettings, saveSettings } = require('./db');
 const { verifyInitData } = require('./verifyInitData');
@@ -9,6 +10,12 @@ const { verifyInitData } = require('./verifyInitData');
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Отдаём index.html и другие статические файлы мини-аппа
+app.use(express.static(__dirname));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const DEV_MODE = process.env.DEV_MODE === 'true';
