@@ -20294,6 +20294,114 @@ main.dark {
 }
 </style>
 
+
+<style id="frame-layout-final-fix">
+/* ===== ФИНАЛЬНАЯ ГЕОМЕТРИЯ ОКНА ===== */
+.settings-overlay {
+  pointer-events: auto !important;
+}
+
+.settings-sheet,
+.settings-sheet-body,
+.settings-sheet-body > main,
+.settings-sheet-body > main > .Panel--container,
+.settings-sheet-body #Panel {
+  box-sizing: border-box !important;
+}
+
+.settings-sheet {
+  position: relative !important;
+  height: 500px !important;
+}
+
+.settings-sheet-body {
+  position: relative !important;
+  height: 455px !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+/* Не даём внутреннему приложению занимать весь экран */
+.settings-sheet-body > main {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  height: 455px !important;
+  overflow: hidden !important;
+}
+
+.settings-sheet-body > main > .Panel--container,
+.settings-sheet-body #Panel {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  height: 455px !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 0 16px 20px !important;
+  margin: 0 !important;
+}
+
+/* Контент внутри рамки */
+.settings-sheet-body .Panel--content {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 auto !important;
+  box-sizing: border-box !important;
+}
+
+/* ===== ТРИ КНОПКИ СУММЫ: ВСЕГДА В ОДНУ СТРОКУ ===== */
+.settings-sheet-body .standalone-amounts {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  gap: 10px !important;
+  box-sizing: border-box !important;
+}
+
+.settings-sheet-body .standalone-amounts button {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  position: static !important;
+  top: auto !important;
+}
+
+/* Только нижняя кнопка поднимается */
+.settings-sheet-body .stars-entry-bottom {
+  width: 100% !important;
+  margin-top: 4px !important;
+  box-sizing: border-box !important;
+}
+
+.settings-sheet-body .stars-entry-bottom button {
+  position: relative !important;
+  top: -10px !important;
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  z-index: 20 !important;
+  pointer-events: auto !important;
+}
+
+/* Поле ввода не должно перекрывать кнопки */
+.settings-sheet-body .standalone-amounts,
+.settings-sheet-body .stars-entry,
+.settings-sheet-body .stars-entry-bottom {
+  position: relative !important;
+  z-index: 10 !important;
+}
+</style>
+
 </head><body class="tc-using-mouse"><div id="root"><div data-overlay-container="true"></div></div><div id="tc-widget-root"><tc-root></tc-root></div>
 <script>
 (() => {
