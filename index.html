@@ -82,7 +82,7 @@ body {
   background: rgba(0, 0, 0, .15);
 }
 
-/* Нижняя часть */
+/* Нижняя часть — сюда вставляется контент */
 .settings-sheet-body {
   height: 455px;
 
@@ -91,6 +91,19 @@ body {
   border-radius: 2rem;
 
   border: 1px solid #e5e5e5;
+
+  /* белое кольцо вокруг вставленного контента, чтобы рамка была видна */
+  padding: 12px;
+
+  /* контент обрезается по скруглённым углам рамки и скроллится внутри */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* вставленный контент тоже прижимаем к скруглённой форме */
+.settings-sheet-body > #root {
+  border-radius: 1.4rem;
+  overflow: hidden;
 }
 
 </style>
