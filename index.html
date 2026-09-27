@@ -167,10 +167,10 @@ body::before{
 .balance-overlay.open{opacity:1;pointer-events:auto}
 .balance-sheet-wrap{max-width:420px;margin:0 auto;position:absolute;left:8px;right:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 25px);display:flex;flex-direction:column;gap:12px;transform:translateY(30px);transition:transform .25s ease}
 .balance-overlay.open .balance-sheet-wrap{transform:translateY(0)}
-.balance-sheet{background:var(--secondary);border-radius:2rem;overflow:hidden}
-.balance-sheet-header{position:relative;font-weight:500;font-size:16px;color:#111;padding:12px 20px;text-align:center;user-select:none}
-.balance-sheet-handle{position:absolute;left:50%;top:6px;transform:translateX(-50%);width:40px;height:4px;border-radius:999px;background:rgba(0,0,0,.15)}
-.balance-sheet-body{padding:16px;background:var(--main);border-radius:2rem;border:1px solid var(--separator)}
+.balance-sheet{background:#1b1b1f;border-radius:2rem;overflow:hidden}
+.balance-sheet-header{position:relative;font-weight:500;font-size:16px;color:#fff;padding:12px 20px;text-align:center;user-select:none}
+.balance-sheet-handle{position:absolute;left:50%;top:6px;transform:translateX(-50%);width:40px;height:4px;border-radius:999px;background:rgba(255,255,255,.18)}
+.balance-sheet-body{padding:16px 16px 18px;background:#1b1b1f;border-radius:2rem;border:1px solid rgba(255,255,255,.04)}
 .balance-title-note{margin:0 8px 20px;color:#85838b;text-align:center;font-size:14px;line-height:1.35}
 .balance-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;border-radius:20px;background:#1B1B1F}
 .balance-tab{position:relative;min-height:56px;border:0;border-radius:16px;background:transparent;color:#85838b;font:500 14px/1 Arial,Helvetica,sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center;gap:6px;z-index:0}
@@ -189,9 +189,9 @@ body::before{
 .balance-amounts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .balance-amounts button{border:0;border-radius:14px;background:#57565a;color:#fff;padding:14px 8px;font-size:16px;font-weight:700;cursor:pointer}
 .balance-amounts button:active{transform:scale(.98)}
-.balance-submit-wrap{margin-top:16px}
-.balance-submit{width:100%;border:0;border-radius:16px;padding:14px 18px;font-size:17px;font-weight:700;background:#fff;color:#111;cursor:pointer}
-.balance-submit:disabled{opacity:.55;cursor:default}
+.balance-submit-wrap{margin-top:12px}
+.balance-submit{width:100%;border:0;border-radius:16px;padding:16px 18px;font-size:17px;font-weight:700;background:#57565a;color:#fff;cursor:pointer;transition:background .15s ease,transform .1s ease}
+.balance-submit:disabled{opacity:1;cursor:default;background:#57565a;color:#c7c7c9}.balance-submit:not(:disabled){background:#fff;color:#111}.balance-submit:not(:disabled):active{transform:scale(.99)}
 .balance-gift-card{border-radius:16px;background:rgba(127,127,127,.10);padding:18px 16px;text-align:center}
 .balance-gift-title{font-size:18px;font-weight:700;margin-bottom:8px}
 .balance-gift-text{color:#85838b;font-size:14px;line-height:1.35;margin-bottom:16px}
