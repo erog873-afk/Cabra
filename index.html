@@ -20582,6 +20582,93 @@ main.dark {
 }
 </style>
 
+
+<style id="final-stars-gifts-ui">
+/* Убираем только верхний заголовок и пояснение у пополнения звёзд */
+.settings-sheet-body .Panel--content > div > .Placeholder--container:first-child{
+  display:none!important;
+}
+
+/* Звёздная сумма сверху: крупно и по центру */
+.settings-sheet-body [data-standalone-panel="stars"] .CenteredNumberInput--container{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:100%!important;
+  min-height:88px!important;
+  margin:8px 0 8px!important;
+}
+.settings-sheet-body [data-standalone-panel="stars"] .CenteredNumberInput--input input{
+  width:auto!important;
+  min-width:44px!important;
+  max-width:260px!important;
+  height:82px!important;
+  border:0!important;
+  outline:0!important;
+  background:transparent!important;
+  color:#fff!important;
+  text-align:right!important;
+  font-size:68px!important;
+  font-weight:700!important;
+  line-height:1!important;
+  padding:0!important;
+  margin:0!important;
+  -webkit-appearance:none!important;
+  appearance:none!important;
+}
+.settings-sheet-body [data-standalone-panel="stars"] .CenteredNumberInput--after{
+  display:flex!important;
+  align-items:center!important;
+  margin-left:10px!important;
+}
+.settings-sheet-body [data-standalone-panel="stars"] .CenteredNumberInput--after img{
+  width:52px!important;
+  height:52px!important;
+  object-fit:contain!important;
+}
+.settings-sheet-body [data-standalone-panel="stars"] .text-14-medium.text-center.text-gray{
+  color:#85838b!important;
+  font-size:16px!important;
+  min-height:22px!important;
+  margin:0 0 12px!important;
+}
+
+/* Три суммы строго в одну строку */
+.settings-sheet-body [data-standalone-panel="stars"] .Flex--container.CellContainer--item{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:10px!important;
+  width:100%!important;
+}
+.settings-sheet-body [data-standalone-panel="stars"] .Flex--container.CellContainer--item button{
+  min-width:0!important;
+  width:100%!important;
+}
+
+/* Кнопка снизу */
+.settings-sheet-body [data-standalone-panel="stars"] .BottomLayout--container{
+  position:relative!important;
+  z-index:20!important;
+}
+.settings-sheet-body [data-standalone-panel="stars"] .BottomLayout--container button{
+  position:relative!important;
+  top:-10px!important;
+  width:100%!important;
+}
+
+/* Подарки — как на твоём скриншоте: заголовок, пояснение и одна кнопка */
+.settings-sheet-body [data-standalone-panel="gifts"] .Card--container:nth-of-type(2){
+  display:none!important;
+}
+.settings-sheet-body [data-standalone-panel="gifts"] .Card--container:first-of-type{
+  display:block!important;
+}
+.settings-sheet-body [data-standalone-panel="gifts"] .Card--container:first-of-type button{
+  display:flex!important;
+  width:100%!important;
+}
+</style>
+
 </head><body class="tc-using-mouse"><div id="root"><div data-overlay-container="true"></div></div><div id="tc-widget-root"><tc-root></tc-root></div>
 <div class="settings-overlay">
   <div class="settings-sheet-wrap">
@@ -20746,6 +20833,62 @@ main.dark {
   } else {
     cleanGifts();
   }
+})();
+</script>
+
+
+<script id="final-stars-amount-script">
+(() => {
+  function initStars(){
+    const root=document.querySelector('.settings-sheet-body');
+    const panel=root?.querySelector('[data-standalone-panel="stars"]');
+    if(!panel) return;
+
+    const input=panel.querySelector('input[placeholder="0"]');
+    const note=panel.querySelector('p.text-14-medium.text-center.text-gray');
+    const buttons=[...panel.querySelectorAll('button')].filter(b=>/^\+\s*[\d\s]+$/.test((b.textContent||'').trim()));
+    const submit=panel.querySelector('.BottomLayout--container button');
+    if(!input) return;
+
+    let value=0;
+
+    function render(){
+      input.value=value?String(value):'';
+      if(note) note.textContent=value ? `Вы получите ~ ${value.toLocaleString('ru-RU')} звезд` : 'Вы получите ~ 0 звезд';
+      if(submit){
+        submit.disabled=value<=0;
+        submit.textContent=value>0?'Пополнить':'Введите сумму';
+      }
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+
+    buttons.forEach(btn=>{
+      if(btn.dataset.fixedAmountHandler) return;
+      btn.dataset.fixedAmountHandler='1';
+      btn.addEventListener('click',e=>{
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const add=parseInt((btn.textContent||'').replace(/\D/g,''),10)||0;
+        value+=add;
+        render();
+      },true);
+    });
+
+    input.addEventListener('input',()=>{
+      const n=parseInt((input.value||'').replace(/\D/g,''),10)||0;
+      value=n;
+      if(note) note.textContent=value ? `Вы получите ~ ${value.toLocaleString('ru-RU')} звезд` : 'Вы получите ~ 0 звезд';
+      if(submit){
+        submit.disabled=value<=0;
+        submit.textContent=value>0?'Пополнить':'Введите сумму';
+      }
+    });
+
+    render();
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initStars,{once:true});
+  else initStars();
 })();
 </script>
 
