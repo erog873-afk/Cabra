@@ -578,11 +578,13 @@ body::before{
   width:44px;height:44px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
   border:1px solid var(--separator);
-  background:rgba(255,255,255,.92);
-  box-shadow:0 2px 16px rgba(0,0,0,.08);
+  background:transparent;
+  box-shadow:none;
   cursor:pointer;
 }
 .balance-btn img{width:25px;height:25px;object-fit:contain;display:block}
+
+/* Только контейнер баланса. Остальной интерфейс файла не меняем. */
 .balance-overlay{
   position:fixed;inset:0;z-index:100;
   background:transparent;
@@ -591,31 +593,35 @@ body::before{
 }
 .balance-overlay.open{opacity:1;pointer-events:auto}
 .balance-sheet-wrap{
-  width:min(40vw, 420px);
+  width:min(40vw, 448px);
   min-width:320px;
   margin:0 auto;
   position:absolute;
   left:8px;right:8px;
-  bottom:calc(env(safe-area-inset-bottom, 0px) + 25px);
-  display:flex;flex-direction:column;gap:12px;
-  transform:translateY(30px);transition:transform .25s ease;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 18px);
+  display:flex;flex-direction:column;gap:10px;
+  transform:translateY(18px);transition:transform .25s ease;
 }
 .balance-overlay.open .balance-sheet-wrap{transform:translateY(0)}
 .balance-sheet{
-  background:var(--secondary);
-  border-radius:2rem;
+  background:#1b1b1f;
+  border:1px solid var(--separator);
+  border-radius:24px;
   overflow:hidden;
+  box-shadow:0 4px 16px rgba(0,0,0,.08),0 16px 64px rgba(0,0,0,.16);
 }
 .balance-sheet-header{
-  position:relative;font-weight:500;font-size:16px;color:#111;
-  padding:12px 20px;text-align:center;user-select:none;
+  position:relative;font-weight:500;font-size:16px;color:#fff;
+  padding:14px 20px 8px;text-align:center;user-select:none;
 }
 .balance-sheet-handle{
-  position:absolute;left:50%;top:6px;transform:translateX(-50%);
-  width:40px;height:4px;border-radius:999px;background:rgba(0,0,0,.15);
+  position:absolute;left:50%;top:5px;transform:translateX(-50%);
+  width:40px;height:4px;border-radius:999px;background:rgba(255,255,255,.18);
 }
 .balance-sheet-body{
-  padding:20px;background:#fff;border-radius:2rem;border:1px solid var(--separator);
+  padding:16px 20px 20px;
+  background:#1b1b1f;
+  border-radius:24px;
 }
 .balance-action-row{
   display:block;
@@ -624,48 +630,77 @@ body::before{
 .balance-submit{
   display:block;
   width:100%;
-  border:none;border-radius:999px;
-  padding:16px 24px;
-  background:var(--button);color:#fff;
-  font-family:inherit;font-size:14px;font-weight:600;
+  min-height:56px;
+  border:0;border-radius:18px;
+  padding:14px 18px;
+  background:#57565a;color:#fff;
+  font-family:inherit;font-size:17px;font-weight:700;
   cursor:pointer;outline:none;
   -webkit-tap-highlight-color:transparent;
   transition:transform .15s,opacity .15s,background .15s;
 }
-.balance-submit:active{transform:scale(.97)}
+.balance-submit:active{transform:scale(.98)}
 .balance-submit:disabled{
-  background:#e9e9eb;color:#9a9a9a;cursor:default;
+  background:#57565a;color:#aaa;cursor:default;
 }
 .balance-tabs{
-  display:flex;gap:8px;font-weight:500;margin-bottom:14px;
+  display:flex;
+  gap:8px;
+  margin-bottom:12px;
+  padding:4px;
+  border-radius:20px;
+  background:#1b1b1f;
 }
 .balance-tab{
-  flex:1;border:none;border-radius:999px;padding:8px 12px;
-  font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;
-  background:rgba(59,157,255,.12);color:var(--button);
+  flex:1;
+  min-height:52px;
+  border:0;border-radius:16px;
+  padding:8px 10px;
+  font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;
+  background:transparent;color:#85838b;
   -webkit-tap-highlight-color:transparent;
   display:flex;align-items:center;justify-content:center;gap:6px;
+  position:relative;
 }
-.balance-tab.active{background:var(--button);color:#fff}
+.balance-tab.active{
+  background:#2a2a2f;color:#fff;
+  box-shadow:none;
+}
 .balance-tab img{width:20px;height:20px;object-fit:contain;display:block}
 .balance-panel{padding-top:8px}
 .balance-description{color:#777;text-align:center;font-size:14px;margin:0 0 16px}
 .balance-stars-entry{text-align:center}
 .balance-stars-row{
-  position:relative;width:100%;height:126px;min-height:126px;
-  cursor:text;overflow:hidden;
+  position:relative;width:100%;height:112px;min-height:112px;
+  cursor:text;overflow:visible;
 }
 .balance-stars-number{
-  position:absolute;right:calc(50% + 48px);top:50%;
-  transform:translateY(-50%);display:block;width:auto;
-  max-width:calc(50% - 60px);overflow:visible;white-space:nowrap;
-  text-align:right;direction:ltr;font-size:68px;font-weight:700;
-  line-height:1;letter-spacing:-2px;font-variant-numeric:tabular-nums;
-  color:#111;z-index:1;
+  position:absolute;
+  right:calc(50% + 48px);
+  top:50%;
+  transform:translateY(-50%);
+  display:block;
+  width:auto;
+  max-width:calc(50% - 52px);
+  overflow:visible;
+  white-space:nowrap;
+  text-align:right;
+  direction:ltr;
+  font-size:68px;
+  font-weight:700;
+  line-height:1;
+  letter-spacing:-2px;
+  font-variant-numeric:tabular-nums;
+  color:#fff;
+  z-index:1;
 }
 .balance-stars-icon{
-  position:absolute;left:calc(50% + 14px);top:50%;
-  transform:translateY(-50%);display:block;z-index:1;
+  position:absolute;
+  left:calc(50% + 14px);
+  top:50%;
+  transform:translateY(-50%);
+  display:block;
+  z-index:1;
 }
 .balance-stars-icon img{width:52px;height:52px;object-fit:contain;display:block}
 .balance-stars-input{
@@ -673,34 +708,64 @@ body::before{
   border:0;outline:0;background:transparent;padding:0;margin:0;
   z-index:5;cursor:text;
 }
-.balance-stars-note{color:#85838b;text-align:center;font-size:16px;margin:2px 0 22px}
-.balance-amounts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.balance-amounts button{
-  border:0;border-radius:16px;background:#57565a;color:#fff;
-  padding:14px 8px;font-family:inherit;font-size:16px;font-weight:700;cursor:pointer;
+.balance-stars-note{
+  color:#85838b;
+  text-align:center;
+  font-size:16px;
+  min-height:20px;
+  margin:0 0 20px;
 }
-.balance-gift-card{padding:20px;text-align:center;border:1px solid var(--separator);border-radius:20px}
-.balance-gift-title{font-size:18px;font-weight:600;color:#111;margin-bottom:6px}
+.balance-amounts{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+}
+.balance-amounts button{
+  border:0;
+  border-radius:18px;
+  background:#57565a;
+  color:#fff;
+  min-height:56px;
+  padding:13px 8px;
+  font-family:inherit;
+  font-size:17px;
+  font-weight:700;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  transition:transform .15s,background .15s;
+}
+.balance-amounts button:active{transform:scale(.98)}
+.balance-gift-card{
+  padding:20px;
+  text-align:center;
+  border:1px solid var(--separator);
+  border-radius:20px;
+  background:#1b1b1f;
+}
+.balance-gift-title{font-size:18px;font-weight:600;color:#fff;margin-bottom:6px}
 .balance-gift-text{font-size:14px;color:#777;margin-bottom:16px}
-.balance-gift-send{border:0;border-radius:999px;padding:10px 20px;background:var(--button);color:#fff;font:500 14px inherit}
+.balance-gift-send{
+  border:0;border-radius:18px;padding:14px 18px;width:100%;
+  min-height:56px;background:#57565a;color:#fff;font:700 17px inherit;
+}
 .balance-close-wrap{padding:0 20px 4px}
 .balance-close-btn{
-  width:100%;padding:16px 24px;border-radius:999px;border:none;
+  width:100%;min-height:56px;padding:14px 18px;border-radius:18px;border:none;
   background:var(--button);color:#fff;font-weight:500;font-size:16px;
   cursor:pointer;outline:none;
 }
 @media(max-width:700px){
-  .balance-sheet-wrap{width:auto;min-width:0}
+  .balance-sheet-wrap{width:auto;min-width:0;left:8px;right:8px}
 }
-@media(max-width:380px){
-  .balance-nav{left:68px}
-  .balance-btn{width:42px;height:42px}
-  .balance-sheet-body{padding:16px}
-  .balance-stars-row{height:112px;min-height:112px}
-  .balance-stars-number{right:calc(50% + 43px);max-width:calc(50% - 52px);font-size:60px;letter-spacing:-1.5px}
+@media(max-width:420px){
+  .balance-sheet-body{padding:14px 16px 18px}
+  .balance-stars-row{height:100px;min-height:100px}
+  .balance-stars-number{right:calc(50% + 43px);max-width:calc(50% - 52px);font-size:60px}
   .balance-stars-icon{left:calc(50% + 13px)}
   .balance-stars-icon img{width:46px;height:46px}
   .balance-amounts{gap:8px}
+  .balance-amounts button{min-height:52px;padding:12px 6px;font-size:16px;border-radius:16px}
+  .balance-submit,.balance-close-btn{min-height:54px}
 }
 
 </style>
