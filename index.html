@@ -20402,76 +20402,187 @@ main.dark {
 }
 </style>
 
+
+<style id="working-frame-fix">
+/* ===== РАБОЧАЯ РАМКА ===== */
+.settings-overlay{
+  position:fixed!important;
+  inset:0!important;
+  z-index:99999!important;
+  display:flex!important;
+  align-items:flex-end!important;
+  justify-content:center!important;
+  padding:0 8px 25px!important;
+  background:rgba(0,0,0,.4)!important;
+  backdrop-filter:blur(4px)!important;
+  -webkit-backdrop-filter:blur(4px)!important;
+  pointer-events:auto!important;
+}
+.settings-sheet-wrap{
+  width:100%!important;
+  max-width:420px!important;
+}
+.settings-sheet{
+  width:100%!important;
+  height:500px!important;
+  background:#fff!important;
+  border-radius:2rem!important;
+  overflow:hidden!important;
+  box-shadow:0 10px 40px rgba(0,0,0,.18)!important;
+}
+.settings-sheet-header{
+  height:45px!important;
+  position:relative!important;
+  background:#fff!important;
+}
+.settings-sheet-body{
+  height:455px!important;
+  position:relative!important;
+  overflow:hidden!important;
+  background:#17181c!important;
+  border-radius:0 0 2rem 2rem!important;
+}
+.settings-sheet-body>main{
+  position:relative!important;
+  width:100%!important;
+  height:455px!important;
+  max-height:455px!important;
+  min-height:0!important;
+  margin:0!important;
+  overflow:hidden!important;
+}
+.settings-sheet-body #Panel{
+  position:relative!important;
+  width:100%!important;
+  height:455px!important;
+  max-height:455px!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0 16px 20px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  box-sizing:border-box!important;
+}
+
+/* ===== РЕАЛЬНЫЕ КНОПКИ +100 / +500 / +1000 ===== */
+.settings-sheet-body [data-standalone-panel="stars"]{
+  width:100%!important;
+  box-sizing:border-box!important;
+}
+
+.settings-sheet-body [data-standalone-panel="stars"] button{
+  box-sizing:border-box!important;
+}
+
+.settings-sheet-body [data-standalone-panel="stars"] .Flex--container.CellContainer--item:has(> button:nth-child(2)){
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:10px!important;
+  width:100%!important;
+  min-width:0!important;
+  align-items:stretch!important;
+}
+
+.settings-sheet-body [data-standalone-panel="stars"] .Flex--container.CellContainer--item:has(> button:nth-child(2)) button{
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  position:static!important;
+  transform:none!important;
+}
+
+/* Нижняя кнопка — поднята, но остаётся кликабельной */
+.settings-sheet-body [data-standalone-panel="stars"] button[data-custom-submit]{
+  position:relative!important;
+  top:-10px!important;
+  z-index:50!important;
+  width:100%!important;
+  pointer-events:auto!important;
+}
+
+/* Поле суммы */
+.settings-sheet-body [data-standalone-panel="stars"] input[placeholder="0"]{
+  position:relative!important;
+  z-index:60!important;
+  pointer-events:auto!important;
+}
+
+/* Не даём длинному числу ломать строку */
+.settings-sheet-body [data-standalone-panel="stars"] .CenteredNumberInput--container{
+  max-width:100%!important;
+  overflow:hidden!important;
+}
+</style>
+
+
+<style id="clean-gifts-layout">
+/* ===== ПОДАРКИ: только заголовок и один квадрат ===== */
+.settings-sheet-body [data-standalone-panel="gifts"] {
+  padding: 18px 0 0 !important;
+}
+
+.settings-sheet-body [data-standalone-panel="gifts"] > div {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+}
+
+/* Скрываем все дополнительные блоки с поддерживаемыми подарками */
+.settings-sheet-body [data-standalone-panel="gifts"] > div > .Card--container:nth-of-type(2),
+.settings-sheet-body [data-standalone-panel="gifts"] .CardContainer--container {
+  display: none !important;
+}
+
+/* Оставляем первый блок чистым */
+.settings-sheet-body [data-standalone-panel="gifts"] > div > .Card--container:first-of-type {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Заголовок */
+.settings-sheet-body [data-standalone-panel="gifts"] .Placeholder--title-container {
+  justify-content: center !important;
+}
+
+.settings-sheet-body [data-standalone-panel="gifts"] .Placeholder--title-container h2 {
+  margin: 0 !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+}
+
+/* Текст под заголовком оставляем минимальным */
+.settings-sheet-body [data-standalone-panel="gifts"] .Placeholder--text {
+  margin: 6px 0 18px !important;
+}
+
+/* Кнопка — большой квадрат */
+.settings-sheet-body [data-standalone-panel="gifts"] > div > .Card--container:first-of-type > button {
+  display: flex !important;
+  width: 150px !important;
+  height: 150px !important;
+  min-width: 150px !important;
+  min-height: 150px !important;
+  max-width: 150px !important;
+  max-height: 150px !important;
+  margin: 12px auto 0 !important;
+  padding: 0 !important;
+  border-radius: 24px !important;
+  font-size: 0 !important;
+  pointer-events: auto !important;
+}
+
+/* Убираем оставшиеся пустые отступы */
+.settings-sheet-body [data-standalone-panel="gifts"] > div > .Card--container:first-of-type > div[style] {
+  display: none !important;
+}
+</style>
+
 </head><body class="tc-using-mouse"><div id="root"><div data-overlay-container="true"></div></div><div id="tc-widget-root"><tc-root></tc-root></div>
-<script>
-(() => {
-  const tabs = [...document.querySelectorAll('[data-standalone-tab]')];
-  const panels = {
-    stars: document.querySelector('[data-standalone-panel="stars"]'),
-    gifts: document.querySelector('[data-standalone-panel="gifts"]')
-  };
-
-  function selectTab(key) {
-    tabs.forEach(tab => {
-      const active = tab.dataset.standaloneTab === key;
-      tab.setAttribute('aria-selected', active ? 'true' : 'false');
-      tab.classList.toggle('standalone-active', active);
-    });
-    Object.entries(panels).forEach(([name, panel]) => {
-      if (panel) panel.hidden = name !== key;
-    });
-  }
-
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => selectTab(tab.dataset.standaloneTab));
-  });
-
-  document.querySelectorAll('[data-stars]').forEach(button => {
-    button.addEventListener('click', () => {
-      const value = Number(button.dataset.stars).toLocaleString('ru-RU');
-      const balance = document.querySelector('.standalone-balance span:first-child');
-      const note = document.querySelector('.standalone-note');
-      if (balance) balance.textContent = value;
-      if (note) note.textContent = 'Выбрано звёзд: ' + value;
-    });
-  });
-
-  selectTab('stars');
-})();
-</script>
-
-<script id="stars-input-fix-script">
-(() => {
-  const panel = document.querySelector('[data-standalone-panel="stars"]');
-  if (!panel) return;
-  const oldBalance = panel.querySelector('.standalone-balance');
-  const oldNote = panel.querySelector('.standalone-note');
-  const amounts = panel.querySelector('.standalone-amounts');
-  if (!oldBalance || !amounts) return;
-  const entry = document.createElement('div');
-  entry.className = 'stars-entry';
-  entry.innerHTML = `
-    <div class="stars-entry-row" role="group" aria-label="Сумма звёзд">
-      <span class="stars-visible-number">0</span>
-      <span class="stars-entry-star" aria-hidden="true">⭐</span>
-      <input class="stars-entry-input" inputmode="numeric" autocomplete="off" aria-label="Сумма звёзд" value="0">
-    </div>
-    <div class="stars-entry-note">0 звёзд</div>`;
-  oldBalance.replaceWith(entry);
-  if (oldNote) oldNote.remove();
-  const row=entry.querySelector('.stars-entry-row'), input=entry.querySelector('.stars-entry-input'), display=entry.querySelector('.stars-visible-number'), star=entry.querySelector('.stars-entry-star'), note=entry.querySelector('.stars-entry-note');
-  const bottom=document.createElement('div'); bottom.className='stars-entry-bottom'; bottom.innerHTML='<button type="button" disabled>Введите сумму</button>'; amounts.parentNode.insertBefore(bottom,amounts.nextSibling); const submit=bottom.querySelector('button');
-  function update(){
-    let digits=(input.value||'').replace(/\D/g,''); if(!digits) digits='0'; input.value=digits; display.textContent=digits;
-    const n=Number(digits)||0; note.textContent=n?('Вы получите ~ '+n.toLocaleString('ru-RU')+' звёзд'):'Вы получите ~ 0 звёзд'; submit.disabled=n<=0; submit.textContent=n>0?'Пополнить':'Введите сумму';
-    const len=digits.length; let size=68; if(len>=4)size=58; if(len>=5)size=50; if(len>=6)size=43; if(len>=7)size=37; if(len>=8)size=32; if(window.innerWidth<=420)size=Math.round(size*.88); display.style.fontSize=size+'px'; star.style.transform='none';
-  }
-  row.addEventListener('click',()=>input.focus()); input.addEventListener('focus',()=>{if(input.value==='0')input.value=''}); input.addEventListener('input',update); input.addEventListener('blur',()=>{if(!input.value)input.value='0';update()});
-  amounts.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{const add=Number(btn.textContent.replace(/\D/g,''))||0;const cur=Number((input.value||'').replace(/\D/g,''))||0;input.value=String(cur+add);update()}));
-  update();
-})();
-</script>
-
 <div class="settings-overlay">
   <div class="settings-sheet-wrap">
     <div class="settings-sheet">
@@ -20484,5 +20595,158 @@ main.dark {
     </div>
   </div>
 </div>
+
+
+<script id="working-stars-script">
+(() => {
+  function init() {
+    const root = document.querySelector('.settings-sheet-body');
+    if (!root) return;
+
+    const tabs = [...root.querySelectorAll('[data-standalone-tab]')];
+    const panels = {
+      stars: root.querySelector('[data-standalone-panel="stars"]'),
+      gifts: root.querySelector('[data-standalone-panel="gifts"]')
+    };
+
+    function selectTab(key) {
+      tabs.forEach(tab => {
+        const active = tab.dataset.standaloneTab === key;
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+        tab.classList.toggle('standalone-active', active);
+      });
+      Object.entries(panels).forEach(([name, panel]) => {
+        if (panel) panel.hidden = name !== key;
+      });
+    }
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => selectTab(tab.dataset.standaloneTab));
+    });
+
+    const panel = panels.stars;
+    if (!panel) return;
+
+    const input = panel.querySelector('input[placeholder="0"], input[inputmode="decimal"]');
+    if (!input) return;
+
+    /* Настоящие кнопки +100 / +500 / +1000 */
+    const plusButtons = [...panel.querySelectorAll('button')].filter(btn =>
+      /^\+\s*\d[\d\s]*$/.test((btn.textContent || '').trim())
+    );
+
+    const submit = [...panel.querySelectorAll('button')].find(btn =>
+      (btn.textContent || '').trim() === 'Введите сумму' ||
+      (btn.textContent || '').trim() === 'Пополнить'
+    );
+
+    if (submit) {
+      submit.dataset.customSubmit = 'true';
+      submit.addEventListener('click', () => {
+        const value = parseInt((input.value || '').replace(/\D/g,''), 10) || 0;
+        if (value > 0) {
+          /* Кнопка теперь реально реагирует; здесь оставляем значение,
+             так как внешний платёжный обработчик в исходном HTML отсутствует. */
+          submit.textContent = 'Пополнить';
+        }
+      });
+    }
+
+    function getValue() {
+      return parseInt((input.value || '').replace(/\D/g,''), 10) || 0;
+    }
+
+    function setValue(value) {
+      const safe = Math.max(0, Math.floor(Number(value) || 0));
+      input.value = safe ? String(safe) : '';
+      input.dispatchEvent(new Event('input', {bubbles:true}));
+
+      /* Обновляем текст «Вы получите...» */
+      const notes = [...panel.querySelectorAll('p, .Text--container, div')];
+      const note = notes.find(el => /Вы получите/i.test(el.textContent || '') &&
+                                   (el.children.length === 0 || el.tagName === 'P'));
+      if (note) {
+        note.textContent = 'Вы получите ~ ' + safe.toLocaleString('ru-RU') + ' звезд';
+      }
+
+      if (submit) {
+        submit.disabled = safe <= 0;
+        submit.textContent = safe > 0 ? 'Пополнить' : 'Введите сумму';
+      }
+    }
+
+    plusButtons.forEach(btn => {
+      btn.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const add = parseInt((btn.textContent || '').replace(/\D/g,''), 10) || 0;
+        setValue(getValue() + add);
+        input.focus();
+      });
+    });
+
+    input.addEventListener('input', () => {
+      const digits = (input.value || '').replace(/\D/g,'');
+      if (input.value !== digits) input.value = digits;
+
+      const value = parseInt(digits, 10) || 0;
+      if (submit) {
+        submit.disabled = value <= 0;
+        submit.textContent = value > 0 ? 'Пополнить' : 'Введите сумму';
+      }
+    });
+
+    input.addEventListener('keydown', event => {
+      if (!/[0-9]/.test(event.key) &&
+          !['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End'].includes(event.key) &&
+          !(event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+      }
+    });
+
+    selectTab('stars');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, {once:true});
+  } else {
+    init();
+  }
+})();
+</script>
+
+
+<script id="clean-gifts-script">
+(() => {
+  function cleanGifts() {
+    const panel = document.querySelector('.settings-sheet-body [data-standalone-panel="gifts"]');
+    if (!panel) return;
+
+    const cards = panel.querySelectorAll(':scope > div > .Card--container');
+    cards.forEach((card, index) => {
+      if (index > 0) card.remove();
+    });
+
+    const first = panel.querySelector(':scope > div > .Card--container');
+    if (!first) return;
+
+    /* Убираем описание — оставляем только название и квадратную кнопку */
+    const description = first.querySelector('.Placeholder--text');
+    if (description) description.remove();
+
+    const button = first.querySelector('button');
+    if (button) {
+      button.textContent = '';
+      button.setAttribute('aria-label', 'Пополнить баланс подарком');
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', cleanGifts, {once:true});
+  } else {
+    cleanGifts();
+  }
+})();
+</script>
 
 </body></html>
