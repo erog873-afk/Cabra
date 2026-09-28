@@ -7,7 +7,7 @@
 const http = require('http'), crypto = require('crypto'), fs = require('fs'), path = require('path');
 const PUBLIC = path.join(__dirname, 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json' };
-const BOT_TOKEN = process.env.BOT_TOKEN || '8239960804:AAHDFegF3O-PmKwf2fh5VU5dDRZFHasBpgg';
+const BOT_TOKEN = process.env.BOT_TOKEN || 'ВСТАВЬ_СЮДА_ТОКЕН_БОТА';
 const SECRET = process.env.WEBHOOK_SECRET || 'ВСТАВЬ_СЮДА_ЛЮБУЮ_ДЛИННУЮ_СТРОКУ';
 const DB_FILE = './db.json';
 const db = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) : { balances: {}, charges: {} };
@@ -59,7 +59,7 @@ http.createServer(async (req, res) => {
       }
     }
     const user = userFromInitData(req.headers['x-init-data']);
-    if (!user) return send(401, { error: 'unauthorized' });
+    if (!user) { console.error('401: initData invalid or BOT_TOKEN wrong'); return send(401, { error: 'unauthorized: неверный BOT_TOKEN или приложение открыто не из Telegram' }); }
     const uid = String(user.id);
     if (req.method === 'GET' && req.url === '/api/balance') return send(200, { balance: db.balances[uid] || 0 });
     if (req.method === 'POST' && req.url === '/api/topup/create') {
@@ -68,7 +68,8 @@ http.createServer(async (req, res) => {
       const r = await tgApi('createInvoiceLink', {
         title: 'Пополнение баланса', description: `${amount} звёзд на баланс`,
         payload: `topup:${uid}:${Date.now()}`, currency: 'XTR', prices: [{ label: 'Звёзды', amount }] });
-      return r.ok ? send(200, { link: r.result }) : send(502, { error: r.description });
+      if (!r.ok) console.error('createInvoiceLink failed:', r);
+      return r.ok ? send(200, { link: r.result }) : send(502, { error: 'Telegram: ' + r.description });
     }
     send(404, { error: 'not found' });
   } catch (e) { console.error(e); send(500, { error: 'server error' }); }
