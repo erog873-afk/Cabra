@@ -7,7 +7,7 @@
 const http = require('http'), crypto = require('crypto'), fs = require('fs'), path = require('path');
 const PUBLIC = path.join(__dirname, 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json' };
-const BOT_TOKEN = process.env.BOT_TOKEN || 'ВСТАВЬ_СЮДА_ТОКЕН_БОТА';
+const BOT_TOKEN = process.env.BOT_TOKEN || '8762994126:AAEPxOKqTNMj3BHH8LUC7EzjhB2Iio06zKQ';
 const SECRET = process.env.WEBHOOK_SECRET || 'ВСТАВЬ_СЮДА_ЛЮБУЮ_ДЛИННУЮ_СТРОКУ';
 const DB_FILE = './db.json';
 const db = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) : { balances: {}, charges: {} };
