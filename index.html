@@ -20234,6 +20234,26 @@ body.tc-using-mouse tc-root :focus { outline: none; }
   .stars-visible-number{font-size:60px}
   .stars-entry-star{font-size:46px}
 }
+
+/* === ФИКС: цифры растут влево, звезда закреплена справа === */
+.CenteredNumberInput--container {
+  justify-content: flex-start;
+}
+
+.CenteredNumberInput--input {
+  margin-left: auto;          /* короткое значение остаётся по центру */
+  max-width: calc(100% - 60px);
+}
+
+.CenteredNumberInput--input input {
+  direction: rtl;             /* при переполнении лишние цифры уходят влево, а не под звезду */
+}
+
+.CenteredNumberInput--after {
+  margin-right: auto;         /* вторая половина центрирования */
+  flex-shrink: 0;             /* звезда не сжимается */
+}
+/* === конец фикса === */
 </style>
 </head>
 <body>
