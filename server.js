@@ -8,7 +8,8 @@ const http = require('http'), crypto = require('crypto'), fs = require('fs'), pa
 const PUBLIC = path.join(__dirname, 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json' };
 const BOT_TOKEN = process.env.BOT_TOKEN || '8762994126:AAEPxOKqTNMj3BHH8LUC7EzjhB2Iio06zKQ';
-const SECRET = process.env.WEBHOOK_SECRET || '0dfc6f461eed0f773c1b1926';
+const SECRET = crypto.createHash('sha256').update('wh:' + BOT_TOKEN).digest('hex').slice(0, 24); // выводится из токена, вручную задавать не нужно
+const PUBLIC_URL = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || 'https://cabra-klsa.onrender.com').replace(/\/$/, '');
 const DB_FILE = './db.json';
 const db = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) : { balances: {}, charges: {} };
 const save = () => fs.writeFileSync(DB_FILE, JSON.stringify(db));
@@ -38,8 +39,9 @@ http.createServer(async (req, res) => {
     // Вебхук от Telegram: тут и зачисляются деньги
     if (req.method === 'POST' && req.url === `/webhook/${SECRET}`) {
       const u = await readBody(req);
+      console.log('webhook update:', Object.keys(u).join(','));
       if (u.pre_checkout_query) {
-        await tgApi('answerPreCheckoutQuery', { pre_checkout_query_id: u.pre_checkout_query.id, ok: true });
+        const a = await tgApi('answerPreCheckoutQuery', { pre_checkout_query_id: u.pre_checkout_query.id, ok: true }); console.log('pre_checkout answered:', JSON.stringify(a));
       }
       const sp = u.message && u.message.successful_payment;
       if (sp) {
@@ -55,7 +57,7 @@ http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && req.url === '/health') {
       const me = await tgApi('getMe', {}).catch(() => null);
-      return send(200, { token_is_placeholder: BOT_TOKEN.includes('ВСТАВЬ'), bot: me && me.ok ? '@' + me.result.username : 'ТОКЕН НЕВЕРНЫЙ: ' + (me && me.description), webhook_secret_is_placeholder: SECRET.includes('ВСТАВЬ') });
+      return send(200, { token_is_placeholder: BOT_TOKEN.includes('ВСТАВЬ'), bot: me && me.ok ? '@' + me.result.username : 'ТОКЕН НЕВЕРНЫЙ: ' + (me && me.description), webhook: PUBLIC_URL + '/webhook/***' });
     }
     if (req.method === 'GET' && !req.url.startsWith('/api/')) {
       let p = decodeURIComponent(req.url.split('?')[0]); if (p === '/') p = '/index.html';
@@ -81,4 +83,9 @@ http.createServer(async (req, res) => {
     send(404, { error: 'not found' });
   } catch (e) { console.error(e); send(500, { error: 'server error' }); }
 }).listen(process.env.PORT || 3000);
-          
+console.log('server started');
+// Сам привязывает вебхук при каждом запуске: адрес и секрет всегда совпадают
+tgApi('setWebhook', { url: `${PUBLIC_URL}/webhook/${SECRET}`, allowed_updates: ['pre_checkout_query', 'message'] })
+  .then(r => console.log('setWebhook:', JSON.stringify(r)))
+  .catch(e => console.error('setWebhook failed', e));
+      
