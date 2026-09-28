@@ -124,6 +124,63 @@
 
 
 
+
+    /* ---- Оплата звёздами через Telegram ----
+       Настройка на странице ДО подключения скрипта:
+       <script>window.APEX_API = "https://your-domain.com";</script> */
+    var API = (window.APEX_API || '').replace(/\/$/, '');
+    var tg = window.Telegram && window.Telegram.WebApp;
+    function api(path, opts){
+      opts = opts || {};
+      opts.headers = Object.assign({ 'Content-Type':'application/json', 'X-Init-Data': (tg && tg.initData) || '' }, opts.headers);
+      return fetch(API + path, opts).then(function(r){ return r.json(); });
+    }
+    function refreshBalance(){
+      return api('/api/balance').then(function(j){ if(j && j.balance != null) window.setBalance(j.balance); }).catch(function(){});
+    }
+    function pollBalance(before, tries){
+      refreshBalance().then(function(){
+        var now = Number(document.getElementById('topBalanceCount').textContent);
+        if(now === before && tries > 0) setTimeout(function(){ pollBalance(before, tries - 1); }, 1500);
+      });
+    }
+    var paying = false;
+    function pay(amount, submitBtn){
+      if(paying || !tg || !tg.openInvoice) return;
+      paying = true; submitBtn.disabled = true;
+      var before = Number(document.getElementById('topBalanceCount').textContent) || 0;
+      api('/api/topup/create', { method:'POST', body: JSON.stringify({ amount: amount }) })
+        .then(function(j){
+          if(!j || !j.link) throw new Error((j && j.error) || 'no link');
+          tg.openInvoice(j.link, function(status){
+            paying = false; submitBtn.disabled = false;
+            if(status === 'paid'){
+              close();
+              pollBalance(before, 10); /* баланс зачисляет сервер после подтверждения от Telegram */
+            } else if(status === 'failed' && tg.showAlert){
+              tg.showAlert(curLang() === 'en' ? 'Payment failed' : 'Оплата не прошла');
+            }
+          });
+        })
+        .catch(function(){
+          paying = false; submitBtn.disabled = false;
+          if(tg.showAlert) tg.showAlert(curLang() === 'en' ? 'Could not create invoice' : 'Не удалось создать счёт');
+        });
+    }
+    frame.addEventListener('load', function(){
+      try{
+        var d = frame.contentDocument;
+        d.addEventListener('click', function(e){
+          var b = e.target.closest && e.target.closest('.stars-entry-bottom button, .BottomLayout--container button');
+          if(!b || b.disabled) return;
+          var inp = d.querySelector('.stars-entry-input') || d.querySelector('.CenteredNumberInput--input input');
+          var amount = parseInt(((inp && inp.value) || '').replace(/\D/g, ''), 10) || 0;
+          if(amount > 0){ e.stopPropagation(); pay(amount, b); }
+        }, true);
+      }catch(err){}
+    });
+    refreshBalance();
+
     /* Баланс виден только на вкладке «Игры» */
     function pageOf(el){ return el ? el.getAttribute('data-page') : null; }
     function currentPage(){
