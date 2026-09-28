@@ -50,6 +50,10 @@ http.createServer(async (req, res) => {
       }
       return send(200, { ok: true });
     }
+    if (req.method === 'GET' && req.url === '/health') {
+      const me = await tgApi('getMe', {}).catch(() => null);
+      return send(200, { token_is_placeholder: BOT_TOKEN.includes('ВСТАВЬ'), bot: me && me.ok ? '@' + me.result.username : 'ТОКЕН НЕВЕРНЫЙ: ' + (me && me.description), webhook_secret_is_placeholder: SECRET.includes('ВСТАВЬ') });
+    }
     if (req.method === 'GET' && !req.url.startsWith('/api/')) {
       let p = decodeURIComponent(req.url.split('?')[0]); if (p === '/') p = '/index.html';
       const f = path.join(PUBLIC, path.normalize(p));
@@ -74,3 +78,4 @@ http.createServer(async (req, res) => {
     send(404, { error: 'not found' });
   } catch (e) { console.error(e); send(500, { error: 'server error' }); }
 }).listen(process.env.PORT || 3000);
+      
