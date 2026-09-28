@@ -8,7 +8,7 @@ const http = require('http'), crypto = require('crypto'), fs = require('fs'), pa
 const PUBLIC = path.join(__dirname, 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json' };
 const BOT_TOKEN = process.env.BOT_TOKEN || '8762994126:AAEPxOKqTNMj3BHH8LUC7EzjhB2Iio06zKQ';
-const SECRET = process.env.WEBHOOK_SECRET || 'ВСТАВЬ_СЮДА_ЛЮБУЮ_ДЛИННУЮ_СТРОКУ';
+const SECRET = process.env.WEBHOOK_SECRET || '0dfc6f461eed0f773c1b1926';
 const DB_FILE = './db.json';
 const db = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) : { balances: {}, charges: {} };
 const save = () => fs.writeFileSync(DB_FILE, JSON.stringify(db));
@@ -16,13 +16,16 @@ const tgApi = (m, body) => fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${m}`
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
 
 // Проверка подписи initData от Telegram Mini App
+let lastAuthError = '';
 function userFromInitData(initData) {
-  if (!initData) return null;
+  lastAuthError = '';
+  if (!initData) { lastAuthError = 'нет initData (приложение открыто не из Telegram или старая версия страницы)'; return null; }
   const p = new URLSearchParams(initData), hash = p.get('hash'); p.delete('hash');
   const check = [...p.entries()].map(([k, v]) => `${k}=${v}`).sort().join('\n');
   const key = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
   const calc = crypto.createHmac('sha256', key).update(check).digest('hex');
-  if (calc !== hash || Date.now() / 1000 - Number(p.get('auth_date')) > 86400) return null;
+  if (calc !== hash) { lastAuthError = 'подпись не совпала (токен бота другой, чем у бота, открывшего приложение)'; return null; }
+  if (Date.now() / 1000 - Number(p.get('auth_date')) > 86400 * 7) { lastAuthError = 'данные устарели: закройте и заново откройте приложение'; return null; }
   return JSON.parse(p.get('user'));
 }
 const readBody = req => new Promise(r => { let s = ''; req.on('data', c => s += c); req.on('end', () => r(s ? JSON.parse(s) : {})); });
@@ -63,7 +66,7 @@ http.createServer(async (req, res) => {
       }
     }
     const user = userFromInitData(req.headers['x-init-data']);
-    if (!user) { console.error('401: initData invalid or BOT_TOKEN wrong'); return send(401, { error: 'unauthorized: неверный BOT_TOKEN или приложение открыто не из Telegram' }); }
+    if (!user) { console.error('401: initData invalid or BOT_TOKEN wrong'); return send(401, { error: 'unauthorized: ' + lastAuthError }); }
     const uid = String(user.id);
     if (req.method === 'GET' && req.url === '/api/balance') return send(200, { balance: db.balances[uid] || 0 });
     if (req.method === 'POST' && req.url === '/api/topup/create') {
@@ -78,4 +81,4 @@ http.createServer(async (req, res) => {
     send(404, { error: 'not found' });
   } catch (e) { console.error(e); send(500, { error: 'server error' }); }
 }).listen(process.env.PORT || 3000);
-      
+          
