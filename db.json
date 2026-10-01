@@ -1,0 +1,212 @@
+{
+  "balances": {},
+  "charges": {},
+  "cases": [
+    {
+      "id": "poor",
+      "section": "Рулетка со звездами",
+      "name": "Нищий",
+      "icon": "",
+      "price": 50,
+      "gradient": "gray",
+      "enabled": true,
+      "gifts": [
+        {
+          "id": "g1",
+          "name": "",
+          "icon": "",
+          "price": 15,
+          "chance": 24.98
+        },
+        {
+          "id": "g2",
+          "name": "",
+          "icon": "",
+          "price": 25,
+          "chance": 24.98
+        },
+        {
+          "id": "g3",
+          "name": "",
+          "icon": "",
+          "price": 40,
+          "chance": 24.98
+        },
+        {
+          "id": "g4",
+          "name": "",
+          "icon": "",
+          "price": 60,
+          "chance": 24.98
+        },
+        {
+          "id": "g5",
+          "name": "",
+          "icon": "",
+          "price": 80,
+          "chance": 0.01
+        },
+        {
+          "id": "g6",
+          "name": "",
+          "icon": "",
+          "price": 100,
+          "chance": 0.01
+        },
+        {
+          "id": "g7",
+          "name": "",
+          "icon": "",
+          "price": 150,
+          "chance": 0.01
+        },
+        {
+          "id": "g8",
+          "name": "",
+          "icon": "",
+          "price": 200,
+          "chance": 0.01
+        },
+        {
+          "id": "g9",
+          "name": "",
+          "icon": "",
+          "price": 250,
+          "chance": 0.01
+        },
+        {
+          "id": "g10",
+          "name": "",
+          "icon": "",
+          "price": 300,
+          "chance": 0.01
+        },
+        {
+          "id": "g11",
+          "name": "",
+          "icon": "",
+          "price": 400,
+          "chance": 0.01
+        },
+        {
+          "id": "g12",
+          "name": "",
+          "icon": "",
+          "price": 500,
+          "chance": 0.01
+        }
+      ]
+    },
+    {
+      "id": "worker",
+      "section": "Рулетка со звездами",
+      "name": "Работяга",
+      "icon": "",
+      "price": 100,
+      "gradient": "gray",
+      "enabled": true,
+      "gifts": []
+    },
+    {
+      "id": "farmer",
+      "section": "Рулетка со звездами",
+      "name": "Фармила",
+      "icon": "",
+      "price": 200,
+      "gradient": "gray",
+      "enabled": true,
+      "gifts": []
+    },
+    {
+      "id": "rich",
+      "section": "Рулетка со звездами",
+      "name": "Богатый",
+      "icon": "",
+      "price": 500,
+      "gradient": "purple",
+      "enabled": true,
+      "gifts": []
+    },
+    {
+      "id": "icecream",
+      "section": "Рулетка с NFT",
+      "name": "Мороженое",
+      "icon": "https://storage.portal-market.com/portals-market/gifts/vicecream/models/png/pumpkinspice.png",
+      "price": 200,
+      "gradient": "purple",
+      "enabled": true,
+      "gifts": []
+    },
+    {
+      "id": "snake",
+      "section": "Рулетка с NFT",
+      "name": "Змея",
+      "icon": "https://storage.portal-market.com/portals-market/gifts/lovepotion/models/png/aerogel.png",
+      "price": 250,
+      "gradient": "purple",
+      "enabled": true,
+      "gifts": []
+    },
+    {
+      "id": "torch",
+      "section": "Рулетка с NFT",
+      "name": "Факел",
+      "icon": "https://storage.portal-market.com/portals-market/gifts/chillflame/models/png/losangeles.png",
+      "price": 300,
+      "gradient": "purple",
+      "enabled": true,
+      "gifts": []
+    },
+    {
+      "id": "cigar",
+      "section": "Рулетка с NFT",
+      "name": "Сигара",
+      "icon": "https://storage.portal-market.com/portals-market/gifts/vintagecigar/models/png/aquaviolet.png",
+      "price": 350,
+      "gradient": "purple",
+      "enabled": true,
+      "gifts": []
+    },
+    {
+      "id": "aladdin",
+      "section": "Рулетка с NFT",
+      "name": "Аладдин",
+      "icon": "",
+      "price": 400,
+      "gradient": "purple",
+      "enabled": true,
+      "gifts": []
+    },
+    {
+      "id": "ring",
+      "section": "Рулетка с NFT",
+      "name": "Кольцо",
+      "icon": "",
+      "price": 450,
+      "gradient": "purple",
+      "enabled": true,
+      "gifts": []
+    },
+    {
+      "id": "investor",
+      "section": "Рулетка с NFT",
+      "name": "Инвестор",
+      "icon": "",
+      "price": 500,
+      "gradient": "purple",
+      "enabled": true,
+      "gifts": []
+    },
+    {
+      "id": "cap",
+      "section": "Рулетка с NFT",
+      "name": "Кепка",
+      "icon": "",
+      "price": 600,
+      "gradient": "purple",
+      "enabled": true,
+      "gifts": []
+    }
+  ],
+  "version": 1
+}
