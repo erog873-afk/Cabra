@@ -234,13 +234,12 @@ textarea{min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:12p
   }
   function renderPrize(){
     var p=ui.draftPrize, it=p.kind==='item';
-    var icons=S.icons().map(function(i){return '<button class="ic'+(i.id===p.icon?' sel':'')+'" data-a="pick" data-icon="'+esc(i.id)+'" title="'+esc(i.name)+'"><img src="'+esc(i.src)+'" alt=""></button>'}).join('')+'<button class="ic up" data-a="upIcon">＋</button>';
+    var icons=S.icons().filter(function(i){return i.id==='star'||i.id===p.icon}).map(function(i){return '<button class="ic'+(i.id===p.icon?' sel':'')+'" data-a="pick" data-icon="'+esc(i.id)+'" title="'+esc(i.name)+'"><img src="'+esc(i.src)+'" alt=""></button>'}).join('')+'<button class="ic up" data-a="upIcon">＋</button>';
     $('prizeBox').innerHTML=
       '<div class="hd"><h2>'+(p._new?'Новый приз':'Приз')+'</h2></div>'+
       '<div class="prev" id="pPrev"></div>'+
       '<div class="g2" style="margin-top:8px"><button class="btn'+(it?'':' pri')+'" data-a="kind" data-k="stars">⭐ Звёзды</button><button class="btn'+(it?' pri':'')+'" data-a="kind" data-k="item">🎁 Предмет</button></div>'+
       '<label>'+(it?'Картинка предмета':'Иконка')+'</label><div class="icons">'+icons+'</div>'+
-      '<div class="toolbar" style="margin-top:10px"><button class="chipbtn" data-a="upIcon">📷 Добавить из фото</button></div>'+
       '<label>Или по ссылке на картинку</label><div class="g2" style="grid-template-columns:1fr auto;align-items:center"><input id="pUrl" type="url" inputmode="url" placeholder="https://…/picture.png"><button class="chipbtn" data-a="addUrl">🔗 Добавить</button></div>'+
       '<label>Цвет карточки</label><div class="clrs">'+[['gray','Серый'],['purple','Фиолетовый'],['red','Красный']].map(function(c){return '<button class="clr '+c[0]+(colCur(p)===c[0]?' sel':'')+'" data-a="color" data-c="'+c[0]+'">'+c[1]+'</button>'}).join('')+'</div>'+
       (it?'<div class="g2"><div><label>Название (RU)</label><input id="pNameRu" value="'+esc(p.name.ru)+'"></div><div><label>Название (EN)</label><input id="pNameEn" value="'+esc(p.name.en)+'"></div></div>':'')+
