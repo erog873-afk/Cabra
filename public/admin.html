@@ -3,280 +3,501 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Админка кейсов</title>
+<title>Админ-панель кейсов</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#11131a;color:#fff;font-family:Arial,sans-serif}
-.wrap{max-width:900px;margin:0 auto;padding:18px}
-h1{font-size:24px;margin:0 0 6px}
-.sub{color:#9297a5;font-size:13px;margin-bottom:18px}
-.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
-button{border:0;border-radius:12px;padding:12px 16px;background:#2b2f3b;color:#fff;font-weight:700;cursor:pointer}
-button.primary{background:#fff;color:#111}
-button.danger{background:#57252b}
-.status{padding:12px;border-radius:12px;background:#1b1e27;margin-bottom:15px;color:#cdd1dc}
-.card{background:#1a1d26;border:1px solid #292d38;border-radius:16px;padding:16px;margin-bottom:14px}
-.row{display:grid;grid-template-columns:1fr 140px;gap:12px}
-label{display:block;color:#9297a5;font-size:12px;margin:0 0 6px}
-input,select{width:100%;border:1px solid #303541;background:#11141b;color:#fff;border-radius:10px;padding:11px;font-size:15px;outline:none}
-input:focus,select:focus{border-color:#777f91}
-.field{margin-bottom:12px}
-.preview{display:flex;align-items:center;gap:12px;margin-bottom:14px}
-.preview img{width:58px;height:58px;object-fit:contain;border-radius:12px;background:#11141b}
-.preview .noimg{width:58px;height:58px;border-radius:12px;background:#242833;display:flex;align-items:center;justify-content:center;color:#777;font-size:11px}
-.cardtop{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
-.cardtitle{font-size:17px;font-weight:700}
-.small{font-size:12px;color:#7f8594}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.empty{text-align:center;color:#858b99;padding:35px}
-@media(max-width:600px){.row{grid-template-columns:1fr}.wrap{padding:12px}}
+body{margin:0;background:#0b0d12;color:#fff;font-family:Arial,sans-serif}
+button,input,select{font:inherit}
+.wrap{max-width:1100px;margin:auto;padding:18px}
+.top{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}
+h1{font-size:22px;margin:0}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+button{border:0;border-radius:10px;padding:11px 15px;cursor:pointer;font-weight:700}
+.primary{background:#fff;color:#111}
+.green{background:#22c55e;color:#07130b}
+.red{background:#ef4444;color:#fff}
+.gray{background:#252a35;color:#fff}
+.status{padding:10px 12px;border-radius:10px;background:#171b24;color:#b8c0ce;margin-bottom:14px;display:none}
+.status.ok{display:block;color:#86efac}
+.status.err{display:block;color:#fca5a5}
+.case{background:#12161e;border:1px solid #252b37;border-radius:16px;padding:15px;margin-bottom:14px}
+.case-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
+.case-title{font-size:18px;font-weight:800}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+label{display:block;color:#9ca6b6;font-size:12px;margin-bottom:5px}
+input,select{width:100%;background:#090c11;color:#fff;border:1px solid #303746;border-radius:9px;padding:10px;outline:none}
+input:focus,select:focus{border-color:#fff}
+.field.full{grid-column:1/-1}
+.preview{display:flex;align-items:center;gap:12px;margin-top:10px}
+.preview img{width:60px;height:60px;object-fit:contain;background:#090c11;border-radius:10px;border:1px solid #303746}
+.prizes{margin-top:15px;border-top:1px solid #252b37;padding-top:14px}
+.prize{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:8px}
+.empty{padding:25px;text-align:center;background:#12161e;border-radius:15px;color:#8d96a6}
+.section{background:#11151d;border:1px solid #252b37;border-radius:14px;padding:14px;margin-bottom:12px}
+.section-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
+.small{font-size:12px;color:#7f8999}
+@media(max-width:650px){
+ .grid,.prize,.section-row{grid-template-columns:1fr}
+ .field.full{grid-column:auto}
+ .case-head{align-items:flex-start}
+}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Админ-панель кейсов</h1>
-  <div class="sub">Редактирование названий, цен, изображений и оформления. Другие страницы проекта не изменяются.</div>
-
-  <div class="toolbar">
-    <button id="reload">Обновить</button>
-    <button id="add" class="primary">+ Добавить кейс</button>
-    <button id="save" class="primary">Сохранить изменения</button>
+  <div class="top">
+    <h1>Админ-панель кейсов</h1>
+    <div class="actions">
+      <button class="gray" id="reload">Обновить</button>
+      <button class="green" id="addCase">+ Добавить кейс</button>
+      <button class="primary" id="save">Сохранить всё</button>
+    </div>
   </div>
 
-  <div id="status" class="status">Загрузка...</div>
-  <div id="list"></div>
+  <div id="status" class="status"></div>
+
+  <div class="section">
+    <div style="font-weight:800;margin-bottom:10px">Разделы</div>
+    <div id="sections"></div>
+    <button class="gray" id="addSection" style="margin-top:8px">+ Добавить раздел</button>
+  </div>
+
+  <div id="cases"></div>
+  <div id="empty" class="empty" style="display:none">Кейсов пока нет</div>
 </div>
 
 <script>
 (function(){
-  'use strict';
+  "use strict";
 
-  var config = null;
-  var list = document.getElementById('list');
-  var status = document.getElementById('status');
+  const API = (window.APEX_API || location.origin).replace(/\/$/,"");
+  const TG = window.Telegram && window.Telegram.WebApp;
+  let cfg = null;
+  let dirty = false;
 
-  function tgInit(){
-    try{
-      return (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
-    }catch(e){ return ''; }
+  const BUILTIN_ICONS = [
+    {id:"star",name:"Звезда"},
+    {id:"gem",name:"Алмаз"},
+    {id:"gift",name:"Подарок"},
+    {id:"crown",name:"Корона"},
+    {id:"coin",name:"Монета"},
+    {id:"ticket",name:"Билет"},
+    {id:"bolt",name:"Молния"}
+  ];
+
+  function initData(){
+    return (TG && TG.initData) || "";
   }
 
-  function setStatus(text, ok){
-    status.textContent = text;
-    status.style.color = ok === true ? '#8fe3a0' : ok === false ? '#ff9a9a' : '#cdd1dc';
+  function headers(){
+    return {
+      "Content-Type":"application/json",
+      "X-Init-Data":initData()
+    };
   }
 
-  function esc(s){
-    return String(s == null ? '' : s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  function uid(prefix){
+    return prefix + "-" + Date.now().toString(36) + "-" +
+      Math.random().toString(36).slice(2,7);
   }
 
-  function num(v){
-    var n = Number(String(v).replace(',', '.'));
-    return Number.isFinite(n) ? n : 0;
+  function esc(v){
+    return String(v == null ? "" : v)
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;");
   }
 
-  function render(){
-    list.innerHTML = '';
-    var cases = (config && Array.isArray(config.cases)) ? config.cases : [];
+  function number(v, fallback){
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  }
 
-    if(!cases.length){
-      list.innerHTML = '<div class="empty">Кейсов пока нет</div>';
-      return;
-    }
+  function normalize(){
+    if(!cfg || !Array.isArray(cfg.sections)) cfg.sections=[];
+    if(!Array.isArray(cfg.cases)) cfg.cases=[];
 
-    cases.forEach(function(c, i){
-      var el = document.createElement('div');
-      el.className = 'card';
-      el.innerHTML =
-        '<div class="cardtop">' +
-          '<div><div class="cardtitle">Кейс #' + (i+1) + '</div>' +
-          '<div class="small">ID: ' + esc(c.id || '') + '</div></div>' +
-          '<button class="danger" data-remove="'+i+'">Удалить</button>' +
-        '</div>' +
+    cfg.sections.forEach(s=>{
+      if(!s.id) s.id=uid("s");
+      if(typeof s.title === "string"){
+        s.title={ru:s.title,en:s.title};
+      }
+      if(!s.title || typeof s.title!=="object") s.title={ru:"Новый раздел",en:"New section"};
+      if(!s.title.ru) s.title.ru="Новый раздел";
+      if(!s.title.en) s.title.en=s.title.ru;
+    });
 
-        '<div class="preview">' +
-          (c.image ? '<img src="'+esc(c.image)+'" onerror="this.style.display=\'none\'">' :
-                     '<div class="noimg">нет фото</div>') +
-          '<div><b>' + esc(c.nameRu || c.name || 'Без названия') + '</b><div class="small">Предпросмотр</div></div>' +
-        '</div>' +
-
-        '<div class="row">' +
-          '<div class="field"><label>Название (русский)</label><input data-i="'+i+'" data-k="nameRu" value="'+esc(c.nameRu || c.name || '')+'"></div>' +
-          '<div class="field"><label>Цена</label><input type="number" min="0" step="1" data-i="'+i+'" data-k="price" value="'+esc(c.price == null ? 0 : c.price)+'"></div>' +
-        '</div>' +
-
-        '<div class="row">' +
-          '<div class="field"><label>Название (английский)</label><input data-i="'+i+'" data-k="nameEn" value="'+esc(c.nameEn || '')+'"></div>' +
-          '<div class="field"><label>Тема</label><select data-i="'+i+'" data-k="theme">' +
-            '<option value="dark" '+((c.theme||'dark')==='dark'?'selected':'')+'>dark</option>' +
-            '<option value="purple" '+((c.theme||'dark')==='purple'?'selected':'')+'>purple</option>' +
-          '</select></div>' +
-        '</div>' +
-
-        '<div class="field"><label>Изображение (URL)</label><input data-i="'+i+'" data-k="image" value="'+esc(c.image || '')+'"></div>' +
-        '<div class="field"><label>ID кейса</label><input data-i="'+i+'" data-k="id" value="'+esc(c.id || '')+'"></div>' +
-        '<div class="field"><label>Раздел</label><input data-i="'+i+'" data-k="section" value="'+esc(c.section || 'stars')+'"></div>';
-
-      list.appendChild(el);
+    cfg.cases.forEach(c=>{
+      if(!c.id)c.id=uid("case");
+      if(!c.section && cfg.sections[0]) c.section=cfg.sections[0].id;
+      if(typeof c.name==="string"){
+        c.name={ru:c.name,en:c.name};
+      }
+      if(!c.name || typeof c.name!=="object") c.name={ru:"Новый кейс",en:"New case"};
+      if(!c.name.ru)c.name.ru="Новый кейс";
+      if(!c.name.en)c.name.en=c.name.ru;
+      c.price=number(c.price,0);
+      c.image=c.image||"";
+      c.theme=c.theme||"dark";
+      if(!Array.isArray(c.prizes))c.prizes=[];
     });
   }
 
-  function collect(){
-    list.querySelectorAll('[data-i][data-k]').forEach(function(input){
-      var i = Number(input.getAttribute('data-i'));
-      var k = input.getAttribute('data-k');
-      if(!config.cases[i]) return;
-      if(k === 'price') config.cases[i][k] = num(input.value);
-      else config.cases[i][k] = input.value;
-    });
+  function show(msg, type){
+    const el=document.getElementById("status");
+    el.textContent=msg;
+    el.className="status "+(type||"");
+  }
 
-    config.cases.forEach(function(c){
-      c.name = c.nameRu || c.name || '';
-      if(!c.nameRu) c.nameRu = c.name || '';
-      if(!c.nameEn) c.nameEn = c.name || '';
-      if(!c.section) c.section = 'stars';
-      if(!c.theme) c.theme = 'dark';
-      if(c.price == null) c.price = 0;
-      if(!c.image) c.image = '';
-    });
+  function markDirty(){
+    dirty=true;
+    show("Есть несохранённые изменения.","");
   }
 
   async function load(){
-    setStatus('Загрузка...', null);
     try{
-      var r = await fetch('/api/cases?ts='+Date.now(), {
-        cache:'no-store',
-        headers:{'Accept':'application/json'}
+      show("Загрузка...");
+      const r=await fetch(API+"/api/cases?admin="+Date.now(),{
+        cache:"no-store",
+        headers:{"X-Init-Data":initData()}
       });
-      var data = await r.json();
-      if(!r.ok) throw new Error(data.error || ('HTTP '+r.status));
-      config = data;
-      if(!Array.isArray(config.cases)) config.cases = [];
-      if(!Array.isArray(config.sections)) config.sections = [];
+      const j=await r.json();
+      if(!r.ok) throw new Error(j.error || ("HTTP "+r.status));
+      cfg=j.config || j;
+      normalize();
+      dirty=false;
       render();
-      setStatus('Данные загружены. Версия: '+(config.version || 0), true);
+      show("Данные загружены.","ok");
     }catch(e){
-      setStatus('Ошибка загрузки: '+e.message, false);
-      list.innerHTML = '<div class="empty">Не удалось получить /api/cases</div>';
+      show("Ошибка загрузки: "+e.message,"err");
     }
   }
 
-  async function save(){
-    if(!config) return;
-    collect();
-    setStatus('Сохранение...', null);
+  function collect(){
+    if(!cfg)return;
+    document.querySelectorAll("[data-case]").forEach(card=>{
+      const i=Number(card.dataset.case);
+      const c=cfg.cases[i];
+      if(!c)return;
 
-    try{
-      var initData = tgInit();
+      c.id=card.querySelector('[data-f="id"]').value.trim();
+      c.section=card.querySelector('[data-f="section"]').value;
+      c.name.ru=card.querySelector('[data-f="ru"]').value;
+      c.name.en=card.querySelector('[data-f="en"]').value;
+      c.price=number(card.querySelector('[data-f="price"]').value,0);
+      c.image=card.querySelector('[data-f="image"]').value.trim();
+      c.theme=card.querySelector('[data-f="theme"]').value;
 
-      if(!initData){
-        setStatus('Открой админку внутри Telegram, чтобы сервер мог проверить администратора.', false);
-        return;
-      }
-
-      var r = await fetch('/api/cases', {
-        method:'PUT',
-        headers:{
-          'Content-Type':'application/json',
-          'X-Init-Data':initData
-        },
-        body:JSON.stringify(config)
+      c.prizes=[];
+      card.querySelectorAll("[data-prize]").forEach(row=>{
+        c.prizes.push({
+          id:row.dataset.prize || uid("p"),
+          amount:number(row.querySelector(".p-amount").value,0),
+          icon:row.querySelector(".p-icon").value,
+          chance:number(row.querySelector(".p-chance").value,0)
+        });
       });
+    });
 
-      var data = await r.json();
-
-      if(!r.ok){
-        throw new Error(data.error || ('HTTP '+r.status));
-      }
-
-      config = data.config || config;
-      render();
-      setStatus('Сохранено. Версия: '+(config.version || 0), true);
-    }catch(e){
-      setStatus('Ошибка сохранения: '+e.message, false);
-    }
+    document.querySelectorAll("[data-section]").forEach(row=>{
+      const i=Number(row.dataset.section);
+      const s=cfg.sections[i];
+      if(!s)return;
+      s.title.ru=row.querySelector(".s-ru").value;
+      s.title.en=row.querySelector(".s-en").value;
+    });
   }
 
-  function addCase(){
-    if(!config) return;
-    collect();
+  function sectionOptions(selected){
+    return cfg.sections.map(s=>{
+      const title=(s.title && (s.title.ru||s.title.en)) || s.id;
+      return '<option value="'+esc(s.id)+'" '+(s.id===selected?"selected":"")+'>'+
+        esc(title)+"</option>";
+    }).join("");
+  }
 
-    var id = 'case-' + Date.now();
-    config.cases.push({
-      id:id,
-      section:'stars',
-      name:'Новый кейс',
-      nameRu:'Новый кейс',
-      nameEn:'New case',
-      price:50,
-      theme:'dark',
-      image:''
+  function iconOptions(selected){
+    return BUILTIN_ICONS.map(x=>
+      '<option value="'+x.id+'" '+(x.id===selected?"selected":"")+'>'+
+      esc(x.name)+"</option>"
+    ).join("");
+  }
+
+  function renderSections(){
+    const box=document.getElementById("sections");
+    if(!cfg.sections.length){
+      box.innerHTML='<div class="small">Разделов нет. Добавьте раздел.</div>';
+      return;
+    }
+
+    box.innerHTML=cfg.sections.map((s,i)=>`
+      <div class="section-row" data-section="${i}">
+        <div>
+          <label>Название RU</label>
+          <input class="s-ru" value="${esc(s.title.ru)}">
+        </div>
+        <div>
+          <label>Название EN</label>
+          <input class="s-en" value="${esc(s.title.en)}">
+        </div>
+        <button class="red" data-delete-section="${i}">Удалить</button>
+      </div>
+    `).join("");
+  }
+
+  function renderPrizes(c){
+    if(!c.prizes.length){
+      return '<div class="small">Призов нет</div>';
+    }
+
+    return c.prizes.map(p=>`
+      <div class="prize" data-prize="${esc(p.id||uid("p"))}">
+        <div>
+          <label>Сумма</label>
+          <input class="p-amount" type="number" step="any" value="${esc(p.amount)}">
+        </div>
+        <div>
+          <label>Иконка</label>
+          <select class="p-icon">${iconOptions(p.icon)}</select>
+        </div>
+        <div>
+          <label>Шанс %</label>
+          <input class="p-chance" type="number" step="0.01" value="${esc(p.chance)}">
+        </div>
+        <button class="red" data-delete-prize>Удалить</button>
+      </div>
+    `).join("");
+  }
+
+  function render(){
+    normalize();
+    renderSections();
+
+    const box=document.getElementById("cases");
+    const empty=document.getElementById("empty");
+
+    empty.style.display=cfg.cases.length ? "none" : "block";
+
+    box.innerHTML=cfg.cases.map((c,i)=>`
+      <div class="case" data-case="${i}">
+        <div class="case-head">
+          <div class="case-title">${esc(c.name.ru || "Новый кейс")}</div>
+          <button class="red" data-delete-case="${i}">Удалить кейс</button>
+        </div>
+
+        <div class="grid">
+          <div class="field">
+            <label>ID кейса</label>
+            <input data-f="id" value="${esc(c.id)}">
+          </div>
+
+          <div class="field">
+            <label>Раздел</label>
+            <select data-f="section">${sectionOptions(c.section)}</select>
+          </div>
+
+          <div class="field">
+            <label>Название RU</label>
+            <input data-f="ru" value="${esc(c.name.ru)}">
+          </div>
+
+          <div class="field">
+            <label>Название EN</label>
+            <input data-f="en" value="${esc(c.name.en)}">
+          </div>
+
+          <div class="field">
+            <label>Цена</label>
+            <input data-f="price" type="number" step="any" value="${esc(c.price)}">
+          </div>
+
+          <div class="field">
+            <label>Тема</label>
+            <select data-f="theme">
+              <option value="dark" ${c.theme==="dark"?"selected":""}>dark</option>
+              <option value="purple" ${c.theme==="purple"?"selected":""}>purple</option>
+            </select>
+          </div>
+
+          <div class="field full">
+            <label>URL картинки</label>
+            <input data-f="image" value="${esc(c.image)}" placeholder="https://...">
+          </div>
+        </div>
+
+        <div class="preview">
+          ${c.image ? '<img src="'+esc(c.image)+'" onerror="this.style.display=\\'none\\'">' : ''}
+          <span class="small">Картинка кейса</span>
+        </div>
+
+        <div class="prizes">
+          <div style="font-weight:800;margin-bottom:10px">Призы</div>
+          <div class="prize-list">${renderPrizes(c)}</div>
+          <button class="gray" data-add-prize>+ Добавить приз</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  document.getElementById("addCase").onclick=function(){
+    collect();
+    if(!cfg.sections.length){
+      cfg.sections.push({
+        id:uid("s"),
+        title:{ru:"Рулетка со звездами",en:"Star roulette"}
+      });
+    }
+
+    cfg.cases.push({
+      id:uid("case"),
+      section:cfg.sections[0].id,
+      name:{ru:"Новый кейс",en:"New case"},
+      price:0,
+      image:"",
+      theme:"dark",
+      prizes:[]
     });
 
     render();
-    setStatus('Новый кейс добавлен. Нажми «Сохранить изменения».', null);
-    window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
-  }
+    markDirty();
+    window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
+  };
 
-  list.addEventListener('click', function(e){
-    var btn = e.target.closest('[data-remove]');
-    if(!btn) return;
-
-    var i = Number(btn.getAttribute('data-remove'));
-    if(!confirm('Удалить этот кейс?')) return;
-
+  document.getElementById("addSection").onclick=function(){
     collect();
-    var removed = config.cases.splice(i,1)[0];
+    cfg.sections.push({
+      id:uid("s"),
+      title:{ru:"Новый раздел",en:"New section"}
+    });
     render();
-    setStatus('Кейс удалён. Сохраняю изменения...', null);
+    markDirty();
+  };
 
-    // Удаление сохраняется сразу, чтобы после обновления страницы кейс не вернулся.
+  document.getElementById("reload").onclick=function(){
+    if(dirty && !confirm("Есть несохранённые изменения. Перезагрузить и потерять их?"))return;
+    load();
+  };
+
+  document.getElementById("save").onclick=async function(){
     try{
-      var initData = tgInit();
-      if(!initData){
-        // Возвращаем кейс, если админка открыта не внутри Telegram.
-        config.cases.splice(i,0,removed);
-        render();
-        setStatus('Открой админку внутри Telegram — серверу нужен Telegram initData.', false);
+      collect();
+      normalize();
+
+      const ids=new Set();
+      for(const c of cfg.cases){
+        if(!c.id) throw new Error("У одного кейса пустой ID");
+        if(ids.has(c.id)) throw new Error("Повторяется ID кейса: "+c.id);
+        ids.add(c.id);
+      }
+
+      for(const c of cfg.cases){
+        if(!c.name.ru.trim()) throw new Error("У кейса "+c.id+" пустое название RU");
+        if(!c.name.en.trim()) c.name.en=c.name.ru;
+        if(c.price<0) throw new Error("Цена не может быть отрицательной");
+      }
+
+      const payload=JSON.parse(JSON.stringify(cfg));
+      payload.version=Number(cfg.version||0)+1;
+      payload.updatedAt=Date.now();
+
+      show("Сохранение...");
+
+      const r=await fetch(API+"/api/cases",{
+        method:"PUT",
+        headers:headers(),
+        body:JSON.stringify(payload)
+      });
+
+      const j=await r.json();
+      if(!r.ok) throw new Error(j.error || ("HTTP "+r.status));
+
+      cfg=j.config || payload;
+      normalize();
+      dirty=false;
+      render();
+      show("Сохранено. Изменения применены к приложению.","ok");
+    }catch(e){
+      show("Ошибка сохранения: "+e.message,"err");
+    }
+  };
+
+  document.addEventListener("input",function(e){
+    if(e.target.closest(".case") || e.target.closest(".section")) markDirty();
+  });
+
+  document.addEventListener("change",function(e){
+    if(e.target.closest(".case") || e.target.closest(".section")) markDirty();
+  });
+
+  document.addEventListener("click",function(e){
+    const delCase=e.target.closest("[data-delete-case]");
+    if(delCase){
+      const i=Number(delCase.dataset.deleteCase);
+      collect();
+      const c=cfg.cases[i];
+      if(!c)return;
+
+      if(!confirm('Удалить кейс "'+(c.name.ru||c.id)+'"?'))return;
+
+      cfg.cases.splice(i,1);
+      render();
+      markDirty();
+      show("Кейс удалён из списка. Нажмите «Сохранить всё», чтобы удалить его с сервера.","ok");
+      return;
+    }
+
+    const delSection=e.target.closest("[data-delete-section]");
+    if(delSection){
+      const i=Number(delSection.dataset.deleteSection);
+      collect();
+      const s=cfg.sections[i];
+      if(!s)return;
+
+      const used=cfg.cases.some(c=>c.section===s.id);
+      if(used){
+        alert("Нельзя удалить раздел: в нём есть кейсы. Сначала перенесите или удалите эти кейсы.");
         return;
       }
 
-      fetch('/api/cases', {
-        method:'PUT',
-        headers:{
-          'Content-Type':'application/json',
-          'X-Init-Data':initData
-        },
-        body:JSON.stringify(config)
-      })
-      .then(function(r){
-        return r.json().then(function(data){
-          if(!r.ok) throw new Error(data.error || ('HTTP '+r.status));
-          return data;
-        });
-      })
-      .then(function(data){
-        config = data.config || config;
-        render();
-        setStatus('Кейс удалён и сохранён. Версия: '+(config.version || 0), true);
-      })
-      .catch(function(err){
-        config.cases.splice(i,0,removed);
-        render();
-        setStatus('Удаление не сохранено: '+err.message, false);
-      });
-    }catch(err){
-      config.cases.splice(i,0,removed);
+      if(!confirm('Удалить раздел "'+(s.title.ru||s.id)+'"?'))return;
+
+      cfg.sections.splice(i,1);
       render();
-      setStatus('Удаление не сохранено: '+err.message, false);
+      markDirty();
+      return;
+    }
+
+    const addPrize=e.target.closest("[data-add-prize]");
+    if(addPrize){
+      collect();
+      const card=addPrize.closest("[data-case]");
+      const i=Number(card.dataset.case);
+      cfg.cases[i].prizes.push({
+        id:uid("p"),
+        amount:0,
+        icon:"star",
+        chance:0
+      });
+      render();
+      markDirty();
+      return;
+    }
+
+    const delPrize=e.target.closest("[data-delete-prize]");
+    if(delPrize){
+      collect();
+      const row=delPrize.closest("[data-prize]");
+      const card=delPrize.closest("[data-case]");
+      const ci=Number(card.dataset.case);
+      const pi=cfg.cases[ci].prizes.findIndex(p=>p.id===row.dataset.prize);
+      if(pi>=0){
+        cfg.cases[ci].prizes.splice(pi,1);
+        render();
+        markDirty();
+      }
     }
   });
-
-  document.getElementById('reload').addEventListener('click', load);
-  document.getElementById('save').addEventListener('click', save);
-  document.getElementById('add').addEventListener('click', addCase);
 
   load();
 })();
