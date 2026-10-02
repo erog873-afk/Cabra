@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "updatedAt": 0,
+  "sections": [
+    {
+      "id": "stars",
+      "title": "Рулетка со звездами",
+      "titleRu": "Рулетка со звездами",
+      "titleEn": "Star Roulette"
+    }
+  ],
+  "cases": [
+    {
+      "id": "case-50",
+      "section": "stars",
+      "name": "Нищий",
+      "nameRu": "Нищий",
+      "nameEn": "Poor",
+      "price": 50,
+      "theme": "dark",
+      "image": ""
+    },
+    {
+      "id": "case-100",
+      "section": "stars",
+      "name": "Работяга",
+      "nameRu": "Работяга",
+      "nameEn": "Worker",
+      "price": 100,
+      "theme": "dark",
+      "image": ""
+    },
+    {
+      "id": "case-200",
+      "section": "stars",
+      "name": "Фармила",
+      "nameRu": "Фармила",
+      "nameEn": "Farmer",
+      "price": 200,
+      "theme": "purple",
+      "image": ""
+    },
+    {
+      "id": "case-500",
+      "section": "stars",
+      "name": "Богач",
+      "nameRu": "Богач",
+      "nameEn": "Rich",
+      "price": 500,
+      "theme": "purple",
+      "image": ""
+    }
+  ]
+}
