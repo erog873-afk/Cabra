@@ -1,505 +1,351 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Админ-панель кейсов</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Админ-панель</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+/* ===== НАСТРОЙКИ АДМИНКИ ===== */
+window.APEX_ADMIN_IDS = [];            /* Telegram ID админов, например [123456789]. Пусто = без проверки (только для теста). Настоящую проверку делает сервер. */
+/* window.APEX_API = "https://ваш-домен";   <- раскомментируйте, чтобы правки видели ВСЕ пользователи (см. server.py) */
+</script>
+<script src="cases-store.js"></script>
 <style>
-*{box-sizing:border-box}
-body{margin:0;background:#0b0d12;color:#fff;font-family:Arial,sans-serif}
-button,input,select{font:inherit}
-.wrap{max-width:1100px;margin:auto;padding:18px}
-.top{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}
-h1{font-size:22px;margin:0}
-.actions{display:flex;gap:8px;flex-wrap:wrap}
-button{border:0;border-radius:10px;padding:11px 15px;cursor:pointer;font-weight:700}
-.primary{background:#fff;color:#111}
-.green{background:#22c55e;color:#07130b}
-.red{background:#ef4444;color:#fff}
-.gray{background:#252a35;color:#fff}
-.status{padding:10px 12px;border-radius:10px;background:#171b24;color:#b8c0ce;margin-bottom:14px;display:none}
-.status.ok{display:block;color:#86efac}
-.status.err{display:block;color:#fca5a5}
-.case{background:#12161e;border:1px solid #252b37;border-radius:16px;padding:15px;margin-bottom:14px}
-.case-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
-.case-title{font-size:18px;font-weight:800}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-label{display:block;color:#9ca6b6;font-size:12px;margin-bottom:5px}
-input,select{width:100%;background:#090c11;color:#fff;border:1px solid #303746;border-radius:9px;padding:10px;outline:none}
-input:focus,select:focus{border-color:#fff}
-.field.full{grid-column:1/-1}
-.preview{display:flex;align-items:center;gap:12px;margin-top:10px}
-.preview img{width:60px;height:60px;object-fit:contain;background:#090c11;border-radius:10px;border:1px solid #303746}
-.prizes{margin-top:15px;border-top:1px solid #252b37;padding-top:14px}
-.prize{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:8px}
-.empty{padding:25px;text-align:center;background:#12161e;border-radius:15px;color:#8d96a6}
-.section{background:#11151d;border:1px solid #252b37;border-radius:14px;padding:14px;margin-bottom:12px}
-.section-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
-.small{font-size:12px;color:#7f8999}
-@media(max-width:650px){
- .grid,.prize,.section-row{grid-template-columns:1fr}
- .field.full{grid-column:auto}
- .case-head{align-items:flex-start}
-}
+:root{--bg:#0f0f17;--card:#1a1a26;--card2:#232333;--line:rgba(255,255,255,.09);--tx:#fff;--mut:#9a9bb0;--pur:#6842d8;--pur2:#3b17a4;--ok:#34d399;--warn:#fbbf24;--bad:#f87171;--star:#ffc235}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:Montserrat,system-ui,-apple-system,Arial,sans-serif}
+body{padding:calc(env(safe-area-inset-top,0px) + var(--tg-content-safe-top,0px) + 12px) 14px calc(env(safe-area-inset-bottom,0px) + 90px)}
+button{font:inherit;color:inherit;border:0;cursor:pointer}
+input,select,textarea{font:inherit;color:var(--tx);background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;width:100%;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--pur)}
+select{appearance:none}
+label{display:block;font-size:12px;color:var(--mut);margin:12px 2px 6px;font-weight:600}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.top h1{font-size:22px;margin:0;font-weight:800}
+.status{font-size:12px;color:var(--mut);display:flex;align-items:center;gap:6px}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
+.status.busy i{background:var(--warn)}.status.err i{background:var(--bad)}
+.mode{font-size:11px;color:var(--mut);margin:0 0 14px}
+.toolbar{display:flex;gap:8px;margin:0 0 6px;flex-wrap:wrap}
+.chipbtn{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 12px;font-size:13px;font-weight:600}
+.sec{margin-top:18px}
+.sec-h{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px}
+.sec-h h2{font-size:15px;margin:0;font-weight:700}
+.sec-h span{color:var(--mut);font-weight:600;font-size:12px;margin-left:6px}
+.add{background:linear-gradient(135deg,var(--pur),var(--pur2));border-radius:12px;padding:8px 12px;font-size:13px;font-weight:700}
+.row{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px;margin-bottom:8px;width:100%;text-align:left}
+.mini{flex:none;width:58px;height:58px;border-radius:14px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.mini img{width:42px;height:42px;object-fit:contain}
+.mini.dark{background:radial-gradient(50% 100%,rgb(71,67,84),rgb(37,37,52))}.mini.purple{background:radial-gradient(50% 100%,rgb(104,66,216),rgb(59,23,164))}
+.row .nm{font-weight:700;font-size:15px}.row .sub{font-size:12px;color:var(--mut);margin-top:3px}
+.row .pr{margin-left:auto;text-align:right;font-weight:800;color:var(--star);white-space:nowrap}
+.tag{display:inline-block;font-size:11px;border-radius:8px;padding:2px 7px;margin-left:6px;font-weight:700}
+.tag.ok{background:rgba(52,211,153,.15);color:var(--ok)}.tag.warn{background:rgba(251,191,36,.15);color:var(--warn)}.tag.none{background:rgba(255,255,255,.08);color:var(--mut)}
+.empty{color:var(--mut);text-align:center;padding:30px 10px}
+/* окна */
+.layer{position:fixed;inset:0;z-index:50;background:var(--bg);overflow-y:auto;display:none;padding:calc(env(safe-area-inset-top,0px) + var(--tg-content-safe-top,0px) + 12px) 14px calc(env(safe-area-inset-bottom,0px) + 110px)}
+.layer.on{display:block}
+.layer.sheet{z-index:70;background:rgba(0,0,0,.55);padding:0;overflow:hidden}
+.layer.sheet.on{display:flex;align-items:flex-end}
+.sheet-box{background:var(--card);width:100%;max-height:92%;overflow-y:auto;border-radius:24px 24px 0 0;padding:18px 14px calc(env(safe-area-inset-bottom,0px) + 20px)}
+.hd{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.back{background:var(--card);border:1px solid var(--line);border-radius:12px;width:40px;height:40px;font-size:20px}
+.hd h2{margin:0;font-size:18px;font-weight:800}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+.tile{border-radius:18px;min-height:104px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative}
+.tile.dark{background:radial-gradient(50% 100%,rgb(71,67,84),rgb(37,37,52))}.tile.purple{background:radial-gradient(50% 100%,rgb(104,66,216),rgb(59,23,164))}
+.tile img{width:38px;height:38px;object-fit:contain}
+.tile b{font-size:18px}.tile small{font-size:11px;color:rgba(255,255,255,.75);font-weight:600}
+.tile.plus{background:var(--card);border:2px dashed rgba(255,255,255,.2);font-size:34px;color:var(--mut)}
+.sum{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 2px 4px;font-size:13px;font-weight:700}
+.bar{height:8px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden;margin:0 2px}
+.bar i{display:block;height:100%;background:var(--ok);border-radius:6px;transition:width .2s}
+.bar.warn i{background:var(--warn)}.bar.bad i{background:var(--bad)}
+.actions{display:flex;gap:10px;margin-top:16px}
+.btn{flex:1;border-radius:14px;padding:14px;font-weight:700;text-align:center;background:var(--card2)}
+.btn.pri{background:linear-gradient(135deg,var(--pur),var(--pur2))}.btn.dng{background:rgba(248,113,113,.15);color:var(--bad)}
+.icons{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:2px}
+.ic{aspect-ratio:1;border-radius:14px;background:var(--card2);border:2px solid transparent;display:flex;align-items:center;justify-content:center;padding:6px}
+.ic img{width:100%;height:100%;object-fit:contain}
+.ic.sel{border-color:var(--pur);background:rgba(104,66,216,.25)}
+.ic.up{font-size:26px;color:var(--mut);border:2px dashed rgba(255,255,255,.2);background:none}
+.prev{display:flex;justify-content:center;margin:6px 0 2px}.prev .tile{width:110px}
+.note{font-size:12px;color:var(--mut);line-height:1.45;margin:8px 2px}
+textarea{min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);transform:translate(-50%,40px);background:#fff;color:#000;border-radius:14px;padding:11px 16px;font-weight:700;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:100;max-width:90%}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.denied{text-align:center;padding:80px 20px;color:var(--mut)}
+.secrow{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:center}
+.secrow button{background:rgba(248,113,113,.15);color:var(--bad);border-radius:12px;width:44px;height:44px;font-size:18px}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top">
-    <h1>Админ-панель кейсов</h1>
-    <div class="actions">
-      <button class="gray" id="reload">Обновить</button>
-      <button class="green" id="addCase">+ Добавить кейс</button>
-      <button class="primary" id="save">Сохранить всё</button>
-    </div>
-  </div>
+<div id="app"></div>
 
-  <div id="status" class="status"></div>
-
-  <div class="section">
-    <div style="font-weight:800;margin-bottom:10px">Разделы</div>
-    <div id="sections"></div>
-    <button class="gray" id="addSection" style="margin-top:8px">+ Добавить раздел</button>
-  </div>
-
-  <div id="cases"></div>
-  <div id="empty" class="empty" style="display:none">Кейсов пока нет</div>
-</div>
+<!-- редактор кейса -->
+<div class="layer" id="caseLayer"></div>
+<!-- окна поверх -->
+<div class="layer sheet" id="prizeSheet"><div class="sheet-box" id="prizeBox"></div></div>
+<div class="layer sheet" id="jsonSheet"><div class="sheet-box" id="jsonBox"></div></div>
+<div class="layer sheet" id="secSheet"><div class="sheet-box" id="secBox"></div></div>
+<input type="file" id="fileIcon" accept="image/*" hidden>
+<input type="file" id="fileImg" accept="image/*" hidden>
+<div class="toast" id="toast"></div>
 
 <script>
 (function(){
-  "use strict";
+  var S=window.ApexCases, tg=window.Telegram&&window.Telegram.WebApp;
+  if(tg){try{tg.ready();tg.expand();tg.setHeaderColor&&tg.setHeaderColor('#0f0f17');tg.setBackgroundColor&&tg.setBackgroundColor('#0f0f17')}catch(e){}}
+  var $=function(id){return document.getElementById(id)};
+  var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')};
+  var fmt=function(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,' ')};
+  var clone=function(o){return JSON.parse(JSON.stringify(o))};
+  var round4=function(x){return Math.round(x*10000)/10000};
+  var ui={caseId:null,prizeId:null};
 
-  const API = (window.APEX_API || location.origin).replace(/\/$/,"");
-  const TG = window.Telegram && window.Telegram.WebApp;
-  let cfg = null;
-  let dirty = false;
+  /* ---------- доступ ---------- */
+  var ids=window.APEX_ADMIN_IDS||[], uid=tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user&&tg.initDataUnsafe.user.id;
+  if(ids.length&&ids.indexOf(uid)<0){ $('app').innerHTML='<div class="denied"><h2>Нет доступа</h2><p>Эта панель только для администраторов.</p></div>'; return; }
 
-  const BUILTIN_ICONS = [
-    {id:"star",name:"Звезда"},
-    {id:"gem",name:"Алмаз"},
-    {id:"gift",name:"Подарок"},
-    {id:"crown",name:"Корона"},
-    {id:"coin",name:"Монета"},
-    {id:"ticket",name:"Билет"},
-    {id:"bolt",name:"Молния"}
-  ];
+  /* ---------- сохранение (сразу применяется везде) ---------- */
+  var st=document.createElement('span');
+  function setStatus(kind,text){var e=$('status'); if(!e)return; e.className='status '+(kind||''); e.lastChild.textContent=text}
+  var toastT=0;
+  function toast(t){var e=$('toast');e.textContent=t;e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){e.classList.remove('on')},1800)}
+  var saveT=0, queued=null, saving=false;
+  function mutate(fn,now){
+    var c=clone(cfg()); fn(c); queued=c; setStatus('busy','Сохраняю…');
+    clearTimeout(saveT); saveT=setTimeout(flush,now?0:350);
+  }
+  function flush(){
+    if(saving){saveT=setTimeout(flush,200);return}
+    if(!queued)return; var c=queued; queued=null; saving=true;
+    S.save(c).then(function(){setStatus('', 'Сохранено · обновилось у всех')}).catch(function(e){setStatus('err','Ошибка: '+(e&&e.message||e));toast('Не удалось сохранить: '+(e&&e.message||e))}).then(function(){saving=false});
+  }
+  /* актуальные данные с учётом ещё не отправленных правок */
+  function cfg(){return queued||S.get()}
+  function caseById(id,c){c=c||cfg();return c.cases.filter(function(x){return x.id===id})[0]}
 
-  function initData(){
-    return (TG && TG.initData) || "";
+  /* ---------- главный экран ---------- */
+  function sumOf(c){return round4((c.prizes||[]).reduce(function(s,p){return s+Number(p.chance||0)},0))}
+  function tagOf(c){
+    if(!(c.prizes||[]).length) return '<span class="tag none">без призов</span>';
+    var s=sumOf(c); return Math.abs(s-100)<0.0051?'<span class="tag ok">'+c.prizes.length+' призов · 100%</span>':'<span class="tag warn">'+c.prizes.length+' призов · '+s+'%</span>';
+  }
+  function renderMain(){
+    var c=cfg(), html='';
+    html+='<div class="top"><h1>Админ-панель</h1><div class="status" id="status"><i></i><span>Готово</span></div></div>';
+    html+='<p class="mode">'+(window.APEX_API?'Сервер: '+esc(window.APEX_API):'Локальный режим (без сервера): правки видны на этом устройстве')+'</p>';
+    html+='<div class="toolbar"><button class="chipbtn" data-a="addcase">＋ Кейс</button><button class="chipbtn" data-a="secs">Разделы</button><button class="chipbtn" data-a="json">Копия / импорт</button></div>';
+    c.sections.forEach(function(sec){
+      var list=c.cases.filter(function(x){return x.section===sec.id});
+      html+='<div class="sec"><div class="sec-h"><h2>'+esc(S.title(sec,'ru'))+'<span>'+list.length+'</span></h2><button class="add" data-a="addcase" data-sec="'+esc(sec.id)+'">＋ Кейс</button></div>';
+      if(!list.length) html+='<div class="empty">Пока пусто</div>';
+      list.forEach(function(k){
+        html+='<button class="row" data-a="edit" data-id="'+esc(k.id)+'"><div class="mini '+(k.theme==='dark'?'dark':'purple')+'">'+(k.image?'<img src="'+esc(k.image)+'" alt="">':'<img src="'+esc(S.iconSrc('star'))+'" alt="" style="opacity:.9">')+'</div><div><div class="nm">'+esc(S.name(k,'ru'))+'</div><div class="sub">'+esc(S.name(k,'en'))+' '+tagOf(k)+'</div></div><div class="pr">⭐ '+fmt(k.price)+'</div></button>';
+      });
+      html+='</div>';
+    });
+    $('app').innerHTML=html;
+  }
+  $('app').addEventListener('click',function(e){
+    var b=e.target.closest('[data-a]'); if(!b)return; var a=b.getAttribute('data-a');
+    if(a==='edit') openCase(b.getAttribute('data-id'));
+    if(a==='addcase') addCase(b.getAttribute('data-sec'));
+    if(a==='secs') openSecs();
+    if(a==='json') openJson();
+  });
+  function addCase(sec){
+    var id=S.newId('c');
+    mutate(function(c){
+      c.cases.push({id:id,section:sec||(c.sections[0]&&c.sections[0].id)||'',name:{ru:'Новый кейс',en:'New case'},price:100,image:'',theme:'purple',prizes:[]});
+    },true);
+    renderMain(); openCase(id);
   }
 
-  function headers(){
-    return {
-      "Content-Type":"application/json",
-      "X-Init-Data":initData()
-    };
+  /* ---------- редактор кейса ---------- */
+  function tileHtml(p){
+    var hi=p.color?p.color==='purple':p.amount>=200;
+    return '<div class="tile '+(hi?'purple':'dark')+'" data-a="prize" data-pid="'+esc(p.id)+'"><img src="'+esc(S.iconSrc(p.icon))+'" alt=""><b>'+fmt(p.amount)+'</b><small>'+round4(p.chance)+'%</small></div>';
   }
-
-  function uid(prefix){
-    return prefix + "-" + Date.now().toString(36) + "-" +
-      Math.random().toString(36).slice(2,7);
+  function sumBlock(k){
+    var s=sumOf(k), cls=Math.abs(s-100)<0.0051?'':(s>100?'bad':'warn');
+    return '<div class="sum"><span>Сумма шансов: '+s+'%</span><button class="chipbtn" data-a="norm">Выровнять до 100%</button></div><div class="bar '+cls+'"><i style="width:'+Math.min(100,s)+'%"></i></div>'+(cls?'<p class="note">'+(s>100?'Сумма больше 100% — шансы будут пересчитаны пропорционально.':'Сумма меньше 100% — шансы будут пересчитаны пропорционально.')+' Лучше нажмите «Выровнять».</p>':'');
   }
-
-  function esc(v){
-    return String(v == null ? "" : v)
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;");
+  function openCase(id){
+    ui.caseId=id; var k=caseById(id); if(!k)return;
+    var c=cfg();
+    var secOpts=c.sections.map(function(s){return '<option value="'+esc(s.id)+'"'+(s.id===k.section?' selected':'')+'>'+esc(S.title(s,'ru'))+'</option>'}).join('');
+    $('caseLayer').innerHTML=
+      '<div class="hd"><button class="back" data-a="close">‹</button><h2>Кейс</h2><div class="status" id="status" style="margin-left:auto"><i></i><span>Готово</span></div></div>'+
+      '<div class="g2"><div><label>Название (RU)</label><input id="fNameRu" value="'+esc(k.name.ru)+'"></div><div><label>Название (EN)</label><input id="fNameEn" value="'+esc(k.name.en)+'"></div></div>'+
+      '<div class="g2"><div><label>Цена, ⭐</label><input id="fPrice" type="number" inputmode="numeric" min="1" value="'+esc(k.price)+'"></div><div><label>Раздел</label><select id="fSec">'+secOpts+'</select></div></div>'+
+      '<div class="g2"><div><label>Стиль карточки</label><select id="fTheme"><option value="dark"'+(k.theme==='dark'?' selected':'')+'>Тёмный</option><option value="purple"'+(k.theme!=='dark'?' selected':'')+'>Фиолетовый</option></select></div><div><label>Картинка (ссылка)</label><input id="fImg" placeholder="https://…" value="'+esc(k.image||'')+'"></div></div>'+
+      '<div class="toolbar" style="margin-top:10px"><button class="chipbtn" data-a="upImg">Загрузить картинку</button><button class="chipbtn" data-a="clrImg">Убрать картинку</button></div>'+
+      '<label style="margin-top:18px">Призы внутри кейса</label><div class="tiles" id="tiles"></div><div id="sumBlock"></div>'+
+      '<div class="actions"><button class="btn dng" data-a="delcase">Удалить кейс</button><button class="btn pri" data-a="close">Готово</button></div>';
+    $('caseLayer').classList.add('on'); $('caseLayer').scrollTop=0; refreshTiles(); backBtn();
   }
-
-  function number(v, fallback){
-    const n = Number(v);
-    return Number.isFinite(n) ? n : fallback;
+  function refreshTiles(){
+    var k=caseById(ui.caseId); if(!k)return;
+    $('tiles').innerHTML=(k.prizes||[]).map(tileHtml).join('')+'<div class="tile plus" data-a="addprize">＋</div>';
+    $('sumBlock').innerHTML=sumBlock(k);
   }
-
+  function closeCase(){ui.caseId=null;$('caseLayer').classList.remove('on');renderMain();backBtn()}
+  function bindCaseField(id,fn){var e=$(id); if(e)e.addEventListener('input',function(){mutate(function(c){var k=caseById(ui.caseId,c);if(k)fn(k,e.value,c)})})}
+  $('caseLayer').addEventListener('input',function(e){
+    var id=e.target.id, v=e.target.value, cid=ui.caseId; if(!cid)return;
+    var m={fNameRu:function(k){k.name.ru=v},fNameEn:function(k){k.name.en=v},fPrice:function(k){var n=parseInt(v,10);if(n>0)k.price=n},fSec:function(k){k.section=v},fTheme:function(k){k.theme=v},fImg:function(k){k.image=v.trim()}}[id];
+    if(m) mutate(function(c){var k=caseById(cid,c);if(k)m(k)});
+  });
+  $('caseLayer').addEventListener('click',function(e){
+    var b=e.target.closest('[data-a]'); if(!b)return; var a=b.getAttribute('data-a');
+    if(a==='close') closeCase();
+    if(a==='addprize') openPrize('new');
+    if(a==='prize') openPrize(b.getAttribute('data-pid'));
+    if(a==='norm') normalize();
+    if(a==='upImg') $('fileImg').click();
+    if(a==='clrImg'){$('fImg').value='';mutate(function(c){caseById(ui.caseId,c).image=''})}
+    if(a==='delcase') confirmDo('Удалить этот кейс вместе с призами?',function(){var id=ui.caseId;mutate(function(c){c.cases=c.cases.filter(function(x){return x.id!==id})},true);closeCase();toast('Кейс удалён')});
+  });
   function normalize(){
-    if(!cfg || !Array.isArray(cfg.sections)) cfg.sections=[];
-    if(!Array.isArray(cfg.cases)) cfg.cases=[];
-
-    cfg.sections.forEach(s=>{
-      if(!s.id) s.id=uid("s");
-      if(typeof s.title === "string"){
-        s.title={ru:s.title,en:s.title};
-      }
-      if(!s.title || typeof s.title!=="object") s.title={ru:"Новый раздел",en:"New section"};
-      if(!s.title.ru) s.title.ru="Новый раздел";
-      if(!s.title.en) s.title.en=s.title.ru;
-    });
-
-    cfg.cases.forEach(c=>{
-      if(!c.id)c.id=uid("case");
-      if(!c.section && cfg.sections[0]) c.section=cfg.sections[0].id;
-      if(typeof c.name==="string"){
-        c.name={ru:c.name,en:c.name};
-      }
-      if(!c.name || typeof c.name!=="object") c.name={ru:"Новый кейс",en:"New case"};
-      if(!c.name.ru)c.name.ru="Новый кейс";
-      if(!c.name.en)c.name.en=c.name.ru;
-      c.price=number(c.price,0);
-      c.image=c.image||"";
-      c.theme=c.theme||"dark";
-      if(!Array.isArray(c.prizes))c.prizes=[];
-    });
+    mutate(function(c){
+      var k=caseById(ui.caseId,c), s=sumOf(k); if(!k.prizes.length||s<=0)return;
+      var acc=0; k.prizes.forEach(function(p,i){ if(i===k.prizes.length-1){p.chance=round4(100-acc)} else {p.chance=round4(p.chance/s*100);acc+=p.chance} });
+    },true); refreshTiles();
   }
 
-  function show(msg, type){
-    const el=document.getElementById("status");
-    el.textContent=msg;
-    el.className="status "+(type||"");
+  /* ---------- редактор приза ---------- */
+  function openPrize(pid){
+    var k=caseById(ui.caseId); if(!k)return;
+    var p;
+    if(pid==='new'){
+      var rest=Math.max(0,round4(100-sumOf(k)));
+      p={id:S.newId('p'),amount:100,icon:'star',chance:rest||1,_new:true};
+    } else p=clone((k.prizes||[]).filter(function(x){return x.id===pid})[0]);
+    if(!p)return;
+    ui.prizeId=p.id; ui.draftPrize=p;
+    renderPrize(); $('prizeSheet').classList.add('on'); backBtn();
   }
-
-  function markDirty(){
-    dirty=true;
-    show("Есть несохранённые изменения.","");
+  function renderPrize(){
+    var p=ui.draftPrize, c=cfg();
+    var icons=S.icons().map(function(i){return '<button class="ic'+(i.id===p.icon?' sel':'')+'" data-a="pick" data-icon="'+esc(i.id)+'" title="'+esc(i.name)+'"><img src="'+esc(i.src)+'" alt=""></button>'}).join('')+'<button class="ic up" data-a="upIcon">＋</button>';
+    $('prizeBox').innerHTML=
+      '<div class="hd"><h2>'+(p._new?'Новый приз':'Приз')+'</h2></div>'+
+      '<div class="prev" id="pPrev"></div>'+
+      '<label>Иконка</label><div class="icons">'+icons+'</div>'+
+      '<div class="g2"><div><label>Сумма, ⭐</label><input id="pAmount" type="number" inputmode="numeric" min="1" value="'+esc(p.amount)+'"></div><div><label>Шанс, %</label><input id="pChance" type="number" inputmode="decimal" step="any" min="0" max="100" value="'+esc(p.chance)+'"></div></div>'+
+      '<div class="toolbar" style="margin-top:10px"><button class="chipbtn" data-a="rest">Весь остаток до 100%</button></div>'+
+      '<p class="note">Шанс — в процентах, можно дробный (например 0.01). Сумма шансов всех призов кейса должна быть 100%.</p>'+
+      '<div class="actions">'+(p._new?'<button class="btn" data-a="cancel">Отмена</button>':'<button class="btn dng" data-a="delprize">Удалить</button>')+'<button class="btn pri" data-a="saveprize">Готово</button></div>';
+    updPrev();
   }
-
-  async function load(){
-    try{
-      show("Загрузка...");
-      const r=await fetch(API+"/api/cases?admin="+Date.now(),{
-        cache:"no-store",
-        headers:{"X-Init-Data":initData()}
-      });
-      const j=await r.json();
-      if(!r.ok) throw new Error(j.error || ("HTTP "+r.status));
-      cfg=j.config || j;
-      normalize();
-      dirty=false;
-      render();
-      show("Данные загружены.","ok");
-    }catch(e){
-      show("Ошибка загрузки: "+e.message,"err");
-    }
+  function updPrev(){
+    var p=ui.draftPrize,hi=p.amount>=200;
+    $('pPrev').innerHTML='<div class="tile '+(hi?'purple':'dark')+'"><img src="'+esc(S.iconSrc(p.icon))+'" alt=""><b>'+fmt(p.amount||0)+'</b><small>'+round4(p.chance||0)+'%</small></div>';
   }
-
-  function collect(){
-    if(!cfg)return;
-    document.querySelectorAll("[data-case]").forEach(card=>{
-      const i=Number(card.dataset.case);
-      const c=cfg.cases[i];
-      if(!c)return;
-
-      c.id=card.querySelector('[data-f="id"]').value.trim();
-      c.section=card.querySelector('[data-f="section"]').value;
-      c.name.ru=card.querySelector('[data-f="ru"]').value;
-      c.name.en=card.querySelector('[data-f="en"]').value;
-      c.price=number(card.querySelector('[data-f="price"]').value,0);
-      c.image=card.querySelector('[data-f="image"]').value.trim();
-      c.theme=card.querySelector('[data-f="theme"]').value;
-
-      c.prizes=[];
-      card.querySelectorAll("[data-prize]").forEach(row=>{
-        c.prizes.push({
-          id:row.dataset.prize || uid("p"),
-          amount:number(row.querySelector(".p-amount").value,0),
-          icon:row.querySelector(".p-icon").value,
-          chance:number(row.querySelector(".p-chance").value,0)
-        });
-      });
-    });
-
-    document.querySelectorAll("[data-section]").forEach(row=>{
-      const i=Number(row.dataset.section);
-      const s=cfg.sections[i];
-      if(!s)return;
-      s.title.ru=row.querySelector(".s-ru").value;
-      s.title.en=row.querySelector(".s-en").value;
-    });
-  }
-
-  function sectionOptions(selected){
-    return cfg.sections.map(s=>{
-      const title=(s.title && (s.title.ru||s.title.en)) || s.id;
-      return '<option value="'+esc(s.id)+'" '+(s.id===selected?"selected":"")+'>'+
-        esc(title)+"</option>";
-    }).join("");
-  }
-
-  function iconOptions(selected){
-    return BUILTIN_ICONS.map(x=>
-      '<option value="'+x.id+'" '+(x.id===selected?"selected":"")+'>'+
-      esc(x.name)+"</option>"
-    ).join("");
-  }
-
-  function renderSections(){
-    const box=document.getElementById("sections");
-    if(!cfg.sections.length){
-      box.innerHTML='<div class="small">Разделов нет. Добавьте раздел.</div>';
-      return;
-    }
-
-    box.innerHTML=cfg.sections.map((s,i)=>`
-      <div class="section-row" data-section="${i}">
-        <div>
-          <label>Название RU</label>
-          <input class="s-ru" value="${esc(s.title.ru)}">
-        </div>
-        <div>
-          <label>Название EN</label>
-          <input class="s-en" value="${esc(s.title.en)}">
-        </div>
-        <button class="red" data-delete-section="${i}">Удалить</button>
-      </div>
-    `).join("");
-  }
-
-  function renderPrizes(c){
-    if(!c.prizes.length){
-      return '<div class="small">Призов нет</div>';
-    }
-
-    return c.prizes.map(p=>`
-      <div class="prize" data-prize="${esc(p.id||uid("p"))}">
-        <div>
-          <label>Сумма</label>
-          <input class="p-amount" type="number" step="any" value="${esc(p.amount)}">
-        </div>
-        <div>
-          <label>Иконка</label>
-          <select class="p-icon">${iconOptions(p.icon)}</select>
-        </div>
-        <div>
-          <label>Шанс %</label>
-          <input class="p-chance" type="number" step="0.01" value="${esc(p.chance)}">
-        </div>
-        <button class="red" data-delete-prize>Удалить</button>
-      </div>
-    `).join("");
-  }
-
-  function render(){
-    normalize();
-    renderSections();
-
-    const box=document.getElementById("cases");
-    const empty=document.getElementById("empty");
-
-    empty.style.display=cfg.cases.length ? "none" : "block";
-
-    box.innerHTML=cfg.cases.map((c,i)=>`
-      <div class="case" data-case="${i}">
-        <div class="case-head">
-          <div class="case-title">${esc(c.name.ru || "Новый кейс")}</div>
-          <button class="red" data-delete-case="${i}">Удалить кейс</button>
-        </div>
-
-        <div class="grid">
-          <div class="field">
-            <label>ID кейса</label>
-            <input data-f="id" value="${esc(c.id)}">
-          </div>
-
-          <div class="field">
-            <label>Раздел</label>
-            <select data-f="section">${sectionOptions(c.section)}</select>
-          </div>
-
-          <div class="field">
-            <label>Название RU</label>
-            <input data-f="ru" value="${esc(c.name.ru)}">
-          </div>
-
-          <div class="field">
-            <label>Название EN</label>
-            <input data-f="en" value="${esc(c.name.en)}">
-          </div>
-
-          <div class="field">
-            <label>Цена</label>
-            <input data-f="price" type="number" step="any" value="${esc(c.price)}">
-          </div>
-
-          <div class="field">
-            <label>Тема</label>
-            <select data-f="theme">
-              <option value="dark" ${c.theme==="dark"?"selected":""}>dark</option>
-              <option value="purple" ${c.theme==="purple"?"selected":""}>purple</option>
-            </select>
-          </div>
-
-          <div class="field full">
-            <label>URL картинки</label>
-            <input data-f="image" value="${esc(c.image)}" placeholder="https://...">
-          </div>
-        </div>
-
-        <div class="preview">
-          ${c.image ? '<img src="'+esc(c.image)+'" onerror="this.style.display=\\'none\\'">' : ''}
-          <span class="small">Картинка кейса</span>
-        </div>
-
-        <div class="prizes">
-          <div style="font-weight:800;margin-bottom:10px">Призы</div>
-          <div class="prize-list">${renderPrizes(c)}</div>
-          <button class="gray" data-add-prize>+ Добавить приз</button>
-        </div>
-      </div>
-    `).join("");
-  }
-
-  document.getElementById("addCase").onclick=function(){
-    collect();
-    if(!cfg.sections.length){
-      cfg.sections.push({
-        id:uid("s"),
-        title:{ru:"Рулетка со звездами",en:"Star roulette"}
-      });
-    }
-
-    cfg.cases.push({
-      id:uid("case"),
-      section:cfg.sections[0].id,
-      name:{ru:"Новый кейс",en:"New case"},
-      price:0,
-      image:"",
-      theme:"dark",
-      prizes:[]
-    });
-
-    render();
-    markDirty();
-    window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
-  };
-
-  document.getElementById("addSection").onclick=function(){
-    collect();
-    cfg.sections.push({
-      id:uid("s"),
-      title:{ru:"Новый раздел",en:"New section"}
-    });
-    render();
-    markDirty();
-  };
-
-  document.getElementById("reload").onclick=function(){
-    if(dirty && !confirm("Есть несохранённые изменения. Перезагрузить и потерять их?"))return;
-    load();
-  };
-
-  document.getElementById("save").onclick=async function(){
-    try{
-      collect();
-      normalize();
-
-      const ids=new Set();
-      for(const c of cfg.cases){
-        if(!c.id) throw new Error("У одного кейса пустой ID");
-        if(ids.has(c.id)) throw new Error("Повторяется ID кейса: "+c.id);
-        ids.add(c.id);
-      }
-
-      for(const c of cfg.cases){
-        if(!c.name.ru.trim()) throw new Error("У кейса "+c.id+" пустое название RU");
-        if(!c.name.en.trim()) c.name.en=c.name.ru;
-        if(c.price<0) throw new Error("Цена не может быть отрицательной");
-      }
-
-      const payload=JSON.parse(JSON.stringify(cfg));
-      payload.version=Number(cfg.version||0)+1;
-      payload.updatedAt=Date.now();
-
-      show("Сохранение...");
-
-      const r=await fetch(API+"/api/cases",{
-        method:"PUT",
-        headers:headers(),
-        body:JSON.stringify(payload)
-      });
-
-      const j=await r.json();
-      if(!r.ok) throw new Error(j.error || ("HTTP "+r.status));
-
-      cfg=j.config || payload;
-      normalize();
-      dirty=false;
-      render();
-      show("Сохранено. Изменения применены к приложению.","ok");
-    }catch(e){
-      show("Ошибка сохранения: "+e.message,"err");
-    }
-  };
-
-  document.addEventListener("input",function(e){
-    if(e.target.closest(".case") || e.target.closest(".section")) markDirty();
+  $('prizeBox').addEventListener('input',function(e){
+    var p=ui.draftPrize; if(e.target.id==='pAmount'){p.amount=parseInt(e.target.value,10)||0} if(e.target.id==='pChance'){p.chance=parseFloat(String(e.target.value).replace(',','.'))||0} updPrev();
   });
-
-  document.addEventListener("change",function(e){
-    if(e.target.closest(".case") || e.target.closest(".section")) markDirty();
-  });
-
-  document.addEventListener("click",function(e){
-    const delCase=e.target.closest("[data-delete-case]");
-    if(delCase){
-      const i=Number(delCase.dataset.deleteCase);
-      collect();
-      const c=cfg.cases[i];
-      if(!c)return;
-
-      if(!confirm('Удалить кейс "'+(c.name.ru||c.id)+'"?'))return;
-
-      cfg.cases.splice(i,1);
-      render();
-      markDirty();
-      show("Кейс удалён из списка. Нажмите «Сохранить всё», чтобы удалить его с сервера.","ok");
-      return;
-    }
-
-    const delSection=e.target.closest("[data-delete-section]");
-    if(delSection){
-      const i=Number(delSection.dataset.deleteSection);
-      collect();
-      const s=cfg.sections[i];
-      if(!s)return;
-
-      const used=cfg.cases.some(c=>c.section===s.id);
-      if(used){
-        alert("Нельзя удалить раздел: в нём есть кейсы. Сначала перенесите или удалите эти кейсы.");
-        return;
-      }
-
-      if(!confirm('Удалить раздел "'+(s.title.ru||s.id)+'"?'))return;
-
-      cfg.sections.splice(i,1);
-      render();
-      markDirty();
-      return;
-    }
-
-    const addPrize=e.target.closest("[data-add-prize]");
-    if(addPrize){
-      collect();
-      const card=addPrize.closest("[data-case]");
-      const i=Number(card.dataset.case);
-      cfg.cases[i].prizes.push({
-        id:uid("p"),
-        amount:0,
-        icon:"star",
-        chance:0
-      });
-      render();
-      markDirty();
-      return;
-    }
-
-    const delPrize=e.target.closest("[data-delete-prize]");
-    if(delPrize){
-      collect();
-      const row=delPrize.closest("[data-prize]");
-      const card=delPrize.closest("[data-case]");
-      const ci=Number(card.dataset.case);
-      const pi=cfg.cases[ci].prizes.findIndex(p=>p.id===row.dataset.prize);
-      if(pi>=0){
-        cfg.cases[ci].prizes.splice(pi,1);
-        render();
-        markDirty();
-      }
+  $('prizeBox').addEventListener('click',function(e){
+    var b=e.target.closest('[data-a]'); if(!b)return; var a=b.getAttribute('data-a'), p=ui.draftPrize;
+    if(a==='pick'){p.icon=b.getAttribute('data-icon');renderPrize()}
+    if(a==='upIcon') $('fileIcon').click();
+    if(a==='rest'){var k=caseById(ui.caseId);var others=(k.prizes||[]).filter(function(x){return x.id!==p.id}).reduce(function(s,x){return s+x.chance},0);p.chance=Math.max(0,round4(100-others));renderPrize()}
+    if(a==='cancel') closePrize();
+    if(a==='delprize') confirmDo('Удалить этот приз?',function(){var id=p.id;mutate(function(c){var k=caseById(ui.caseId,c);k.prizes=k.prizes.filter(function(x){return x.id!==id})},true);closePrize();refreshTiles()});
+    if(a==='saveprize'){
+      if(!(p.amount>0)){toast('Укажите сумму больше 0');return}
+      if(!(p.chance>=0)){toast('Шанс не может быть отрицательным');return}
+      var np={id:p.id,amount:p.amount,icon:p.icon,chance:round4(p.chance)};
+      mutate(function(c){var k=caseById(ui.caseId,c);if(!k.prizes)k.prizes=[];var i=k.prizes.map(function(x){return x.id}).indexOf(np.id);if(i<0)k.prizes.push(np);else k.prizes[i]=np},true);
+      closePrize(); refreshTiles();
     }
   });
+  function closePrize(){ui.prizeId=null;$('prizeSheet').classList.remove('on');backBtn()}
+  $('prizeSheet').addEventListener('click',function(e){if(e.target===this){if(ui.draftPrize&&ui.draftPrize._new)closePrize();else closePrize()}});
 
-  load();
+  /* ---------- загрузка картинок ---------- */
+  function resize(file,size,cb){
+    var r=new FileReader(); r.onload=function(){var im=new Image(); im.onload=function(){
+      var s=Math.min(1,size/Math.max(im.width,im.height)), w=Math.round(im.width*s), h=Math.round(im.height*s);
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(im,0,0,w,h); cb(cv.toDataURL('image/png'));
+    }; im.onerror=function(){toast('Не удалось прочитать картинку')}; im.src=r.result}; r.readAsDataURL(file);
+  }
+  $('fileIcon').addEventListener('change',function(){
+    var f=this.files[0]; this.value=''; if(!f)return;
+    resize(f,128,function(src){
+      var id=S.newId('u'); mutate(function(c){c.icons=c.icons||[];c.icons.push({id:id,name:'Своя',src:src})},true);
+      if(ui.draftPrize){ui.draftPrize.icon=id;} setTimeout(renderPrize,60);
+    });
+  });
+  $('fileImg').addEventListener('change',function(){
+    var f=this.files[0]; this.value=''; if(!f)return;
+    resize(f,256,function(src){mutate(function(c){caseById(ui.caseId,c).image=src},true);var e=$('fImg');if(e)e.value='(загруженная картинка)'});
+  });
+
+  /* ---------- разделы ---------- */
+  function openSecs(){renderSecs();$('secSheet').classList.add('on');backBtn()}
+  function renderSecs(){
+    var c=cfg();
+    $('secBox').innerHTML='<div class="hd"><h2>Разделы</h2></div><p class="note">Название раздела на русском и английском. Раздел с кейсами удалить нельзя.</p>'+
+      c.sections.map(function(s){return '<div class="secrow"><input data-sid="'+esc(s.id)+'" data-l="ru" value="'+esc(s.title.ru)+'" placeholder="RU"><input data-sid="'+esc(s.id)+'" data-l="en" value="'+esc(s.title.en)+'" placeholder="EN"><button data-a="delsec" data-sid="'+esc(s.id)+'">✕</button></div>'}).join('')+
+      '<div class="actions"><button class="btn" data-a="addsec">＋ Раздел</button><button class="btn pri" data-a="closesec">Готово</button></div>';
+  }
+  $('secBox').addEventListener('input',function(e){
+    var sid=e.target.getAttribute('data-sid'),l=e.target.getAttribute('data-l'); if(!sid)return;
+    mutate(function(c){var s=c.sections.filter(function(x){return x.id===sid})[0];if(s)s.title[l]=e.target.value})
+  });
+  $('secBox').addEventListener('click',function(e){
+    var b=e.target.closest('[data-a]'); if(!b)return; var a=b.getAttribute('data-a');
+    if(a==='closesec'){$('secSheet').classList.remove('on');renderMain();backBtn()}
+    if(a==='addsec'){mutate(function(c){c.sections.push({id:S.newId('s'),title:{ru:'Новый раздел',en:'New section'}})},true);setTimeout(renderSecs,30)}
+    if(a==='delsec'){var sid=b.getAttribute('data-sid');
+      if(cfg().cases.some(function(k){return k.section===sid})){toast('В разделе есть кейсы — сначала удалите или перенесите их');return}
+      mutate(function(c){c.sections=c.sections.filter(function(s){return s.id!==sid})},true);setTimeout(renderSecs,30)}
+  });
+
+  /* ---------- копия / импорт ---------- */
+  function openJson(){
+    $('jsonBox').innerHTML='<div class="hd"><h2>Копия / импорт</h2></div><p class="note">Вся конфигурация кейсов одним текстом. Скопируйте как резервную копию или вставьте чужую и нажмите «Импорт».</p><textarea id="jsonTa" spellcheck="false">'+esc(JSON.stringify(S.get(),null,1).replace(/"data:image[^"]{200,}"/g,function(m){return m}))+'</textarea>'+
+      '<div class="actions"><button class="btn" data-a="copy">Скопировать</button><button class="btn pri" data-a="import">Импорт</button></div><div class="actions"><button class="btn dng" data-a="reset">Сбросить к исходным</button><button class="btn" data-a="closejson">Закрыть</button></div>';
+    $('jsonSheet').classList.add('on'); backBtn();
+  }
+  $('jsonBox').addEventListener('click',function(e){
+    var b=e.target.closest('[data-a]'); if(!b)return; var a=b.getAttribute('data-a'), ta=$('jsonTa');
+    if(a==='closejson'){$('jsonSheet').classList.remove('on');backBtn()}
+    if(a==='copy'){ta.select();try{document.execCommand('copy');toast('Скопировано')}catch(err){toast('Выделите текст и скопируйте вручную')}}
+    if(a==='import'){try{var j=JSON.parse(ta.value);if(!j||!Array.isArray(j.cases)||!Array.isArray(j.sections))throw new Error('нет cases/sections');
+      confirmDo('Заменить все кейсы данными из текста?',function(){queued=null;S.save(j).then(function(){toast('Импортировано');renderMain();$('jsonSheet').classList.remove('on')}).catch(function(er){toast('Ошибка: '+er.message)})})}catch(err){toast('Неверный JSON: '+err.message)}}
+    if(a==='reset') confirmDo('Сбросить все кейсы к исходным? Ваши правки пропадут.',function(){queued=null;S.reset().then(function(){toast('Сброшено');renderMain();$('jsonSheet').classList.remove('on')})});
+  });
+
+  /* ---------- общее ---------- */
+  function confirmDo(text,fn){ if(tg&&tg.showConfirm) tg.showConfirm(text,function(ok){if(ok)fn()}); else if(confirm(text)) fn(); }
+  function topLayer(){
+    if($('jsonSheet').classList.contains('on'))return 'json';
+    if($('secSheet').classList.contains('on'))return 'sec';
+    if($('prizeSheet').classList.contains('on'))return 'prize';
+    if($('caseLayer').classList.contains('on'))return 'case';
+    return null;
+  }
+  function goBack(){var t=topLayer();
+    if(t==='json')$('jsonSheet').classList.remove('on'); else if(t==='sec'){$('secSheet').classList.remove('on');renderMain()} else if(t==='prize')closePrize(); else if(t==='case')closeCase();
+    backBtn();
+  }
+  function backBtn(){ if(!(tg&&tg.BackButton))return; if(topLayer()){tg.BackButton.show()}else{tg.BackButton.hide()} }
+  if(tg&&tg.BackButton) tg.BackButton.onClick(goBack);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')goBack()});
+
+  /* изменения с другого устройства/вкладки подтягиваются сами */
+  S.onChange(function(){
+    if(queued||saving)return;
+    if(!ui.caseId) renderMain(); else { var k=caseById(ui.caseId); if(!k){closeCase()} else refreshTiles(); }
+  });
+  S.load().then(renderMain);
+  renderMain();
 })();
 </script>
 </body>
