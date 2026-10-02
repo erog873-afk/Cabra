@@ -237,6 +237,8 @@ textarea{min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:12p
       '<div class="prev" id="pPrev"></div>'+
       '<div class="g2" style="margin-top:8px"><button class="btn'+(it?'':' pri')+'" data-a="kind" data-k="stars">⭐ Звёзды</button><button class="btn'+(it?' pri':'')+'" data-a="kind" data-k="item">🎁 Предмет</button></div>'+
       '<label>'+(it?'Картинка предмета':'Иконка')+'</label><div class="icons">'+icons+'</div>'+
+      '<div class="toolbar" style="margin-top:10px"><button class="chipbtn" data-a="upIcon">📷 Добавить из фото</button></div>'+
+      '<label>Или по ссылке на картинку</label><div class="g2" style="grid-template-columns:1fr auto;align-items:center"><input id="pUrl" type="url" inputmode="url" placeholder="https://…/picture.png"><button class="chipbtn" data-a="addUrl">🔗 Добавить</button></div>'+
       (it?'<div class="g2"><div><label>Название (RU)</label><input id="pNameRu" value="'+esc(p.name.ru)+'"></div><div><label>Название (EN)</label><input id="pNameEn" value="'+esc(p.name.en)+'"></div></div>':'')+
       '<div class="g2"><div><label>'+(it?'Цена продажи, ⭐':'Сумма, ⭐')+'</label><input id="'+(it?'pSell':'pAmount')+'" type="number" inputmode="numeric" min="1" value="'+esc(it?p.sell:p.amount)+'"></div><div><label>Шанс, %</label><input id="pChance" type="number" inputmode="decimal" step="any" min="0" max="100" value="'+esc(p.chance)+'"></div></div>'+
       '<div class="toolbar" style="margin-top:10px"><button class="chipbtn" data-a="rest">Весь остаток до 100%</button></div>'+
@@ -267,6 +269,11 @@ textarea{min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:12p
     }
     if(a==='pick'){p.icon=b.getAttribute('data-icon');renderPrize()}
     if(a==='upIcon') $('fileIcon').click();
+    if(a==='addUrl'){
+      var u=($('pUrl').value||'').trim();
+      if(!/^(https?:\/\/|data:image\/)/i.test(u)){toast('Вставьте ссылку на картинку (https://…)');return}
+      addIconFromUrl(u);
+    }
     if(a==='rest'){var k=caseById(ui.caseId);var others=(k.prizes||[]).filter(function(x){return x.id!==p.id}).reduce(function(s,x){return s+x.chance},0);p.chance=Math.max(0,round4(100-others));renderPrize()}
     if(a==='cancel') closePrize();
     if(a==='delprize') confirmDo('Удалить этот приз?',function(){var id=p.id;mutate(function(c){var k=caseById(ui.caseId,c);k.prizes=k.prizes.filter(function(x){return x.id!==id})},true);closePrize();refreshTiles()});
@@ -294,6 +301,29 @@ textarea{min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:12p
       var s=Math.min(1,size/Math.max(im.width,im.height)), w=Math.round(im.width*s), h=Math.round(im.height*s);
       var cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(im,0,0,w,h); cb(cv.toDataURL('image/png'));
     }; im.onerror=function(){toast('Не удалось прочитать картинку')}; im.src=r.result}; r.readAsDataURL(file);
+  }
+  function pushIcon(src,name){
+    var id=S.newId('u'); mutate(function(c){c.icons=c.icons||[];c.icons.push({id:id,name:name,src:src})},true);
+    if(ui.draftPrize){ui.draftPrize.icon=id;} setTimeout(renderPrize,60);
+  }
+  /* по ссылке: пробуем сохранить копию картинки (не зависит от чужого сайта); если сайт не разрешает — сохраняем саму ссылку */
+  function addIconFromUrl(u){
+    if(u.indexOf('data:')===0){pushIcon(u,'Своя');return}
+    var im=new Image(); im.crossOrigin='anonymous';
+    im.onload=function(){
+      try{
+        var sc=Math.min(1,256/Math.max(im.naturalWidth,im.naturalHeight)), w=Math.round(im.naturalWidth*sc), h=Math.round(im.naturalHeight*sc);
+        var cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(im,0,0,w,h);
+        pushIcon(cv.toDataURL('image/png'),'Ссылка');
+      }catch(e){pushIcon(u,'Ссылка')}
+    };
+    im.onerror=function(){
+      var im2=new Image();
+      im2.onload=function(){pushIcon(u,'Ссылка')};
+      im2.onerror=function(){toast('Не удалось загрузить картинку по ссылке')};
+      im2.src=u;
+    };
+    im.src=u;
   }
   $('fileIcon').addEventListener('change',function(){
     var f=this.files[0]; this.value=''; if(!f)return;
