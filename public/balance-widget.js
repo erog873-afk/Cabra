@@ -184,7 +184,7 @@
     });
     refreshBalance();
 
-    /* Баланс виден на вкладках «Игры» и «Кейсы» */
+    /* Баланс виден на вкладках «Игры», «Кейсы» и «Апгрейд» */
     function pageOf(el){ return el ? el.getAttribute('data-page') : null; }
     function currentPage(){
       var a = document.querySelector('.nav-item.active, .nav-item[aria-current="page"]');
@@ -192,7 +192,7 @@
     }
     function updateVisibility(page){
       page = page || currentPage();
-      var show = !page || page === 'games' || page === 'cases';
+      var show = !page || page === 'games' || page === 'cases' || page === 'upgrade';
       btn.classList.toggle('is-hidden', !show);
       if(!show) close();
     }
