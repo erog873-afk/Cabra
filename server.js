@@ -5,7 +5,10 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const { 8758871773:AAFoZe3Mc2tX8e_JwXdE1xgCJ6Oh3pRzB0s, 8642237301, PORT = 3000 } = process.env;
+// ТЕСТ: значения по умолчанию. Перед настоящим запуском удалите их и задайте переменные в Render.
+const BOT_TOKEN = process.env.BOT_TOKEN || '8758871773:AAFoZe3Mc2tX8e_JwXdE1xgCJ6Oh3pRzB0s';
+const ADMIN_ID = process.env.ADMIN_ID || '8642237301';
+const PORT = process.env.PORT || 3000;
 if (!BOT_TOKEN || !ADMIN_ID) { console.error('Задайте BOT_TOKEN и ADMIN_ID'); process.exit(1); }
 
 const DB = path.join(__dirname, 'tasks.json');
