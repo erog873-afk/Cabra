@@ -183,5 +183,5 @@ http.createServer(async (req, res) => {
   } catch (e) {
     send(res, 400, { error: 'Некорректный запрос' });
   }
-}).listen(PORT, () => console.log('http://localhost:' + PORT));
-                         
+}).listen(PORT, '0.0.0.0', () => console.log('Server started on port ' + PORT));
+      
