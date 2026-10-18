@@ -84,18 +84,22 @@
   .big.secondary { background: hsl(270 67% 47%); }
   .actions .gap { height: 10px; }
 
-  /* Всплывающее сообщение — стиль из индекса (notistack): красное «Выполните задание!», тёмное при награде */
-  .toast { position: fixed; left: 50%; top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px) + 14px);
-           z-index: 100000; box-sizing: border-box; width: min(448px, calc(100vw - 32px)); min-width: 288px; transform: translate(-50%, -24px); opacity: 0; pointer-events: none;
-           display: flex; align-items: center; padding: 20px 24px; border-radius: 24px; color: #fff;
-           font-size: 16px; font-weight: 500; line-height: 1.43; text-align: left;
-           box-shadow: rgba(0,0,0,.2) 0 3px 5px -1px, rgba(0,0,0,.14) 0 6px 10px 0, rgba(0,0,0,.12) 0 1px 18px 0;
-           transition: transform .25s ease, opacity .25s ease; }
-  .toast.show { transform: translate(-50%, 0); opacity: 1; }
-  .toast.bad { background: rgb(171, 32, 32); }
-  .toast.good { background: rgb(49, 49, 49); }
-  .toast img { width: 20px; height: 20px; margin-left: 8px; }
-  .toast svg { width: 20px; height: 20px; margin-right: 8px; flex-shrink: 0; fill: currentColor; }
+  /* Плашки — один в один из индекса (notistack): красная «Выполните задание!» и тёмная «+N ★» */
+  .css-1qqqvhh.notistack-MuiContent-error { background: rgb(171, 32, 32); color: rgb(255, 255, 255); border-radius: 24px; padding: 12px 24px; font-size: 16px; font-weight: 500; }
+  .go1475592160 { height: 0px; }
+  .go1671063245 { height: auto; }
+  .go1888806478 { display: flex; flex-wrap: wrap; flex-grow: 1; }
+  .go167266335 { background-color: rgb(49, 49, 49); font-size: 0.875rem; line-height: 1.43; letter-spacing: 0.01071em; color: rgb(255, 255, 255); align-items: center; padding: 6px 16px; border-radius: 4px; box-shadow: rgba(0, 0, 0, 0.2) 0px 3px 5px -1px, rgba(0, 0, 0, 0.14) 0px 6px 10px 0px, rgba(0, 0, 0, 0.12) 0px 1px 18px 0px; }
+  .go3162094071 { padding-left: 20px; }
+  .go3651055292 { background-color: rgb(211, 47, 47); }
+  .go946087465 { display: flex; align-items: center; padding: 8px 0px; }
+  .go3963613292 { width: 100%; position: relative; transform: translateX(0px); inset: 0px; min-width: 288px; }
+  .go1141946668 { box-sizing: border-box; display: flex; max-height: 100%; position: fixed; z-index: 1400; height: auto; width: auto; transition: top 300ms, right 300ms, bottom 300ms, left 300ms, max-width 300ms; pointer-events: none; max-width: calc(100% - 40px); }
+  .go1141946668 .notistack-CollapseWrapper { padding: 6px 0px; transition: padding 300ms; }
+  .go3118922589 { top: 14px; flex-direction: column; }
+  .go4034260886 { left: 50%; transform: translateX(-50%); }
+  #frogToasts { top: 0; margin-top: calc(env(safe-area-inset-top, 0px) + var(--tg-content-safe-top, 0px) + 16px); width: min(448px, calc(100vw - 32px)); max-width: none; z-index: 100000; font-style: normal; display: flex; flex-direction: column; gap: 0; }
+  #frogToasts .go3963613292 { min-width: 0; width: 100%; }
 
   /* Админ-панель */
   .admin-btn { position: fixed; top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px) + 8px); right: 16px;
@@ -140,7 +144,7 @@
   </div>
 </div>
 
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="frogToasts" class="notistack-SnackbarContainer go3118922589 go4034260886 go1141946668 snackbar-margin" role="status" aria-live="polite"></div>
 <div class="backdrop" id="backdrop"></div>
 
 <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" aria-hidden="true">
@@ -174,6 +178,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 const safeSrc = u => /^(data:image\/(png|jpeg|webp);base64,|https:\/\/)/.test(u || '') ? u : DEFAULT_ICON;
 const fmt = n => String(+Number(n).toFixed(2)).replace('.', ',');
 const CHECK = `<svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75ZM15.5303 10.5303C15.8232 10.2374 15.8232 9.76256 15.5303 9.46967C15.2374 9.17678 14.7626 9.17678 14.4697 9.46967L11 12.9393L9.53033 11.4697C9.23744 11.1768 8.76256 11.1768 8.46967 11.4697C8.17678 11.7626 8.17678 12.2374 8.46967 12.5303L10.4697 14.5303C10.7626 14.8232 11.2374 14.8232 11.5303 14.5303L15.5303 10.5303Z" fill="currentColor"></path></svg>`;
+const visited = new Set(); // «Проверить» засчитывается только после «Начать», как в индексе
 let tasks = [], isAdmin = false, current = null, newIcon = DEFAULT_ICON;
 
 async function api(path, opts = {}) {
@@ -183,16 +188,39 @@ async function api(path, opts = {}) {
   return d;
 }
 const say = m => tg?.showAlert ? tg.showAlert(m) : alert(m);
-let toastTimer;
-function toast(kind, text, withStar) { // kind: 'bad' (красное) или 'good' (серое)
-  const el = $('toast');
-  el.className = 'toast ' + kind;
-  el.innerHTML = '';
-  if (kind === 'bad') el.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,6.47 6.47,2 12,2M15.59,7L12,10.59L8.41,7L7,8.41L10.59,12L7,15.59L8.41,17L12,13.41L15.59,17L17,15.59L13.41,12L17,8.41L15.59,7Z"/></svg>');
-  const span = document.createElement('span'); span.textContent = text; el.appendChild(span);
-  if (withStar) { const i = document.createElement('img'); i.src = STAR; i.alt = ''; el.appendChild(i); }
-  void el.offsetWidth; el.classList.add('show');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+const ERR_ICON = '<svg viewBox="0 0 24 24" focusable="false" style="font-size: 20px; margin-inline-end: 8px; user-select: none; width: 1em; height: 1em; display: inline-block; fill: currentcolor; flex-shrink: 0;"><path d="M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,6.47 6.47,2 12,2M15.59,7L12,10.59L8.41,7L7,8.41L10.59,12L7,15.59L8.41,17L12,13.41L15.59,17L17,15.59L13.41,12L17,8.41L15.59,7Z"></path></svg>';
+const TOAST_MAX = 3, TOAST_LIFE = 3000, TOAST_IN = 520, TOAST_OUT = 380, toastItems = [];
+function removeToast(item) {
+  const i = toastItems.indexOf(item); if (i === -1) return;
+  toastItems.splice(i, 1); clearTimeout(item.timer);
+  const el = item.el;
+  el.style.overflow = 'hidden'; el.style.height = el.offsetHeight + 'px'; void el.offsetWidth;
+  el.style.transition = 'height ' + TOAST_OUT + 'ms ease-in-out, opacity ' + (TOAST_OUT - 80) + 'ms ease-in, transform ' + TOAST_OUT + 'ms ease-in';
+  el.style.height = '0px'; el.style.opacity = '0'; el.style.transform = 'translateY(-12px) scale(.97)';
+  setTimeout(() => el.remove(), TOAST_OUT + 30);
+}
+function toast(kind, text, withStar) { // kind: 'bad' (красная) или 'good' (тёмная, «+N ★»)
+  if (toastItems.length >= TOAST_MAX) return;
+  const box = $('frogToasts');
+  try { const top = (tg?.safeAreaInset?.top || 0) + (tg?.contentSafeAreaInset?.top || 0); if (top > 0) box.style.marginTop = (top + 16) + 'px'; } catch (e) {}
+  const el = document.createElement('div'); el.className = 'go1475592160 go1671063245';
+  el.innerHTML = '<div class="notistack-CollapseWrapper" style="display: flex; width: 100%;"><div class="notistack-Snackbar go3963613292"><div class="go1888806478 notistack-MuiContent ' +
+    (kind === 'bad' ? 'notistack-MuiContent-error go167266335 go3651055292 css-1qqqvhh go3162094071' : 'go167266335 go3162094071') + '" role="alert"><div class="go946087465"></div></div></div></div>';
+  const inner = el.querySelector('.go946087465');
+  if (kind === 'bad') { inner.insertAdjacentHTML('afterbegin', ERR_ICON); inner.appendChild(document.createTextNode(text)); }
+  else {
+    el.querySelector('.go167266335').style.background = '#3a3a45';
+    const sp = document.createElement('span'); sp.style.fontWeight = '600'; sp.textContent = text; inner.appendChild(sp);
+    if (withStar) { const im = document.createElement('img'); im.src = STAR; im.width = 20; im.height = 20; im.alt = ''; im.style.marginLeft = '6px'; inner.appendChild(im); }
+  }
+  el.style.boxSizing = 'border-box'; el.style.paddingBottom = '8px'; el.style.overflow = 'hidden';
+  el.style.height = '0px'; el.style.opacity = '0'; el.style.transform = 'translateY(-18px) scale(.96)';
+  box.appendChild(el);
+  const h = el.scrollHeight;
+  el.style.transition = 'height ' + TOAST_IN + 'ms cubic-bezier(.22,1,.36,1), opacity ' + TOAST_IN + 'ms ease-out, transform ' + TOAST_IN + 'ms cubic-bezier(.22,1,.36,1)';
+  requestAnimationFrame(() => { el.style.height = h + 'px'; el.style.opacity = '1'; el.style.transform = 'none'; });
+  setTimeout(() => { el.style.height = ''; el.style.overflow = ''; }, TOAST_IN + 40);
+  const item = { el }; item.timer = setTimeout(() => removeToast(item), TOAST_LIFE); toastItems.push(item);
 }
 
 async function load() {
@@ -236,6 +264,7 @@ $('sheetClose').onclick = closeSheet;
 $('sheetStart').onclick = () => {
   if (!current) return;
   const u = current.url;
+  visited.add(current.id);
   if (!DEMO) api('/api/tasks/' + encodeURIComponent(current.id) + '/start', { method: 'POST', body: '{}' }).catch(() => {});
   if (/^https:\/\/t\.me\//.test(u) && tg?.openTelegramLink) tg.openTelegramLink(u);
   else if (tg?.openLink) tg.openLink(u); else window.open(u, '_blank');
@@ -245,12 +274,12 @@ $('sheetCheck').onclick = async () => {
   const btn = $('sheetCheck'), t = current;
   btn.disabled = true;
   try {
-    if (DEMO) { toast('bad', 'Выполните задание!'); }
+    if (!visited.has(t.id) || DEMO) { tg?.HapticFeedback?.notificationOccurred('error'); toast('bad', 'Выполните задание!'); }
     else {
       const d = await api('/api/tasks/' + encodeURIComponent(t.id) + '/check', { method: 'POST', body: '{}' });
       if (d.ok) {
         if (d.stars != null) $('stars').textContent = fmt(d.stars);
-        t.done = true;
+        t.done = true; visited.delete(t.id);
         closeSheet(); render();
         tg?.HapticFeedback?.notificationOccurred('success');
         if (d.already) toast('good', 'Задание уже выполнено');
