@@ -29,7 +29,9 @@ const saveUsers = u => fs.writeFileSync(USERS, JSON.stringify(u, null, 2));
 // После удаления оно не вернётся (файл уже существует). Ссылку можно задать переменной TEST_CHANNEL в Render.
 if (!fs.existsSync(DB)) {
   let icon = '';
-  try { icon = fs.readFileSync(path.join(__dirname, 'tasks.html'), 'utf8').match(/const DEFAULT_ICON = "(data:image\/png;base64,[A-Za-z0-9+\/=]+)"/)[1]; } catch {}
+  for (const f of ['index.html', 'tasks.html']) {
+    try { icon = fs.readFileSync(path.join(__dirname, f), 'utf8').match(/DEFAULT_ICON\s*=\s*"(data:image\/png;base64,[A-Za-z0-9+\/=]+)"/)[1]; break; } catch {}
+  }
   save([{ id: 'test-task', title: 'Тестовое задание', url: process.env.TEST_CHANNEL || 'https://t.me/your_channel', reward: 1, icon }]);
 }
 
@@ -73,6 +75,13 @@ async function checkSubscription(link, userId) {
   }
 }
 
+const MIME = {
+  '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
+  '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.mp3': 'audio/mpeg'
+};
+const PRIVATE = new Set(['server.js', 'package.json', 'package-lock.json']);
+
 const send = (res, code, data) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
 const body = req => new Promise((ok, no) => {
   let b = ''; req.on('data', c => { b += c; if (b.length > 300000) { no(new Error('big')); req.destroy(); } });
@@ -82,11 +91,19 @@ const body = req => new Promise((ok, no) => {
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
-    if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/tasks.html')) {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-      return res.end(fs.readFileSync(path.join(__dirname, 'tasks.html')));
+    // Статика: index.html и подключаемые к нему файлы (cases-store.js, balance-widget.js, roulette.html, картинки...).
+    // Служебные файлы (server.js, package.json, *.json с данными) отдавать нельзя.
+    if (!url.pathname.startsWith('/api/')) {
+      if (req.method !== 'GET') return send(res, 404, { error: 'Не найдено' });
+      const name = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html';
+      const file = path.resolve(__dirname, name);
+      const ext = path.extname(file).toLowerCase();
+      const ok = file.startsWith(__dirname + path.sep) && MIME[ext] && !PRIVATE.has(path.basename(file)) &&
+        fs.existsSync(file) && fs.statSync(file).isFile();
+      if (!ok) return send(res, 404, { error: 'Не найдено' });
+      res.writeHead(200, { 'Content-Type': MIME[ext], 'Cache-Control': ext === '.html' ? 'no-store' : 'no-cache' });
+      return res.end(fs.readFileSync(file));
     }
-    if (!url.pathname.startsWith('/api/')) return send(res, 404, { error: 'Не найдено' });
 
     const user = verify(req.headers['x-init-data']);
     if (!user) return send(res, 401, { error: 'Откройте приложение из Telegram' });
@@ -167,3 +184,4 @@ http.createServer(async (req, res) => {
     send(res, 400, { error: 'Некорректный запрос' });
   }
 }).listen(PORT, () => console.log('http://localhost:' + PORT));
+                         
