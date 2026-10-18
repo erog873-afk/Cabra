@@ -216,8 +216,26 @@ $('sheetStart').onclick = () => {
   else if (tg?.openLink) tg.openLink(u); else window.open(u, '_blank');
 };
 $('sheetCheck').onclick = async () => {
-  // TODO: запрос на сервер для проверки выполнения. Пока задание не засчитывается.
-  say('Задание пока не выполнено.');
+  if (!current) return;
+  const btn = $('sheetCheck'), t = current;
+  btn.disabled = true;
+  try {
+    if (DEMO) { say('В режиме предпросмотра проверка недоступна.'); }
+    else {
+      const d = await api('/api/tasks/' + encodeURIComponent(t.id) + '/check', { method: 'POST', body: '{}' });
+      if (d.ok) {
+        if (d.stars != null) $('stars').textContent = fmt(d.stars);
+        t.done = true;
+        closeSheet(); render();
+        tg?.HapticFeedback?.notificationOccurred('success');
+        say(d.already ? 'Это задание уже выполнено.' : 'Задание выполнено! Начислено: ' + fmt(d.reward) + ' ★');
+      } else {
+        tg?.HapticFeedback?.notificationOccurred('error');
+        say(d.error || 'Задание пока не выполнено.');
+      }
+    }
+  } catch (e) { say(e.message); }
+  btn.disabled = false;
 };
 
 /* ---- админ-панель ---- */
