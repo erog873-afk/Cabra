@@ -48,6 +48,7 @@ http.createServer(async (req, res) => {
     const user = verify(req.headers['x-init-data']);
     if (!user) return send(res, 401, { error: 'Откройте приложение из Telegram' });
     const isAdmin = String(user.id) === String(ADMIN_ID);
+    console.log('[auth] user.id =', user.id, '| ADMIN_ID =', ADMIN_ID, '| isAdmin =', isAdmin);
 
     if (req.method === 'GET' && url.pathname === '/api/tasks') {
       return send(res, 200, { tasks: load(), isAdmin });
