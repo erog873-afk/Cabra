@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 // Как засчитывается задание: человек нажимает «Начать» (переходит по ссылке), возвращается и жмёт «Проверить задание» —
 // награда зачисляется сразу. STRICT_CHECK=1 в Render включает настоящую проверку подписки через Telegram
 // (тогда бот должен быть администратором канала).
-const STRICT_CHECK = process.env.STRICT_CHECK === '1';
+const STRICT_CHECK = process.env.STRICT_CHECK !== '0'; // проверка подписки включена всегда; отключить можно только STRICT_CHECK=0
 const MIN_WAIT_MS = 3000; // минимум секунд между «Начать» и «Проверить задание»
 if (!BOT_TOKEN || !ADMIN_ID) { console.error('Задайте BOT_TOKEN и ADMIN_ID'); process.exit(1); }
 
