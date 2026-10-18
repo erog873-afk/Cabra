@@ -84,6 +84,19 @@
   .big.secondary { background: hsl(270 67% 47%); }
   .actions .gap { height: 10px; }
 
+  /* Всплывающее сообщение (красное — не выполнено, серое — выполнено) */
+  .toast { position: fixed; left: 50%; top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px) + 12px);
+           z-index: 100; max-width: calc(100% - 32px); transform: translate(-50%, -24px); opacity: 0; pointer-events: none;
+           display: flex; align-items: center; gap: 6px; padding: 12px 18px; border-radius: 16px;
+           background: rgba(25, 27, 31, .85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+           font-size: 15px; font-weight: 600; text-align: center; transition: transform .25s ease, opacity .25s ease; }
+  .toast.show { transform: translate(-50%, 0); opacity: 1; }
+  .toast { color: #fff; }
+  .toast.bad { background: #d32f2f; }
+  .toast.good { background: #3a3a45; }
+  .toast img { width: 20px; height: 20px; }
+  .toast svg { width: 20px; height: 20px; flex-shrink: 0; fill: currentColor; }
+
   /* Админ-панель */
   .admin-btn { position: fixed; top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px) + 8px); right: 16px;
                z-index: 5; width: 42px; height: 42px; border: 0; border-radius: 50%; background: var(--background_light_color);
@@ -127,6 +140,7 @@
   </div>
 </div>
 
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="backdrop" id="backdrop"></div>
 
 <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" aria-hidden="true">
@@ -169,6 +183,17 @@ async function api(path, opts = {}) {
   return d;
 }
 const say = m => tg?.showAlert ? tg.showAlert(m) : alert(m);
+let toastTimer;
+function toast(kind, text, withStar) { // kind: 'bad' (красное) или 'good' (серое)
+  const el = $('toast');
+  el.className = 'toast ' + kind;
+  el.innerHTML = '';
+  if (kind === 'bad') el.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,6.47 6.47,2 12,2M15.59,7L12,10.59L8.41,7L7,8.41L10.59,12L7,15.59L8.41,17L12,13.41L15.59,17L17,15.59L13.41,12L17,8.41L15.59,7Z"/></svg>');
+  const span = document.createElement('span'); span.textContent = text; el.appendChild(span);
+  if (withStar) { const i = document.createElement('img'); i.src = STAR; i.alt = ''; el.appendChild(i); }
+  void el.offsetWidth; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
 
 async function load() {
   try {
@@ -211,6 +236,7 @@ $('sheetClose').onclick = closeSheet;
 $('sheetStart').onclick = () => {
   if (!current) return;
   const u = current.url;
+  if (!DEMO) api('/api/tasks/' + encodeURIComponent(current.id) + '/start', { method: 'POST', body: '{}' }).catch(() => {});
   if (/^https:\/\/t\.me\//.test(u) && tg?.openTelegramLink) tg.openTelegramLink(u);
   else if (tg?.openLink) tg.openLink(u); else window.open(u, '_blank');
 };
@@ -219,7 +245,7 @@ $('sheetCheck').onclick = async () => {
   const btn = $('sheetCheck'), t = current;
   btn.disabled = true;
   try {
-    if (DEMO) { say('В режиме предпросмотра проверка недоступна.'); }
+    if (DEMO) { toast('bad', 'Вы не выполнили задание'); }
     else {
       const d = await api('/api/tasks/' + encodeURIComponent(t.id) + '/check', { method: 'POST', body: '{}' });
       if (d.ok) {
@@ -227,13 +253,14 @@ $('sheetCheck').onclick = async () => {
         t.done = true;
         closeSheet(); render();
         tg?.HapticFeedback?.notificationOccurred('success');
-        say(d.already ? 'Это задание уже выполнено.' : 'Задание выполнено! Начислено: ' + fmt(d.reward) + ' ★');
+        if (d.already) toast('good', 'Задание уже выполнено');
+        else toast('good', '+' + fmt(d.reward), true);
       } else {
         tg?.HapticFeedback?.notificationOccurred('error');
-        say(d.error || 'Задание пока не выполнено.');
+        toast('bad', d.notDone ? 'Вы не выполнили задание' : (d.error || 'Вы не выполнили задание'));
       }
     }
-  } catch (e) { say(e.message); }
+  } catch (e) { toast('bad', e.message); }
   btn.disabled = false;
 };
 

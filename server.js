@@ -10,6 +10,11 @@ const crypto = require('crypto');
 const BOT_TOKEN = process.env.BOT_TOKEN || '8758871773:AAFoZe3Mc2tX8e_JwXdE1xgCJ6Oh3pRzB0s';
 const ADMIN_ID = process.env.ADMIN_ID || '8642237301';
 const PORT = process.env.PORT || 3000;
+// Как засчитывается задание: человек нажимает «Начать» (переходит по ссылке), возвращается и жмёт «Проверить задание» —
+// награда зачисляется сразу. STRICT_CHECK=1 в Render включает настоящую проверку подписки через Telegram
+// (тогда бот должен быть администратором канала).
+const STRICT_CHECK = process.env.STRICT_CHECK === '1';
+const MIN_WAIT_MS = 3000; // минимум секунд между «Начать» и «Проверить задание»
 if (!BOT_TOKEN || !ADMIN_ID) { console.error('Задайте BOT_TOKEN и ADMIN_ID'); process.exit(1); }
 
 const DB = path.join(__dirname, 'tasks.json');
@@ -19,6 +24,14 @@ const load = () => readJson(DB, []);
 const save = t => fs.writeFileSync(DB, JSON.stringify(t, null, 2));
 const loadUsers = () => readJson(USERS, {});
 const saveUsers = u => fs.writeFileSync(USERS, JSON.stringify(u, null, 2));
+
+// ТЕСТ: если файла с заданиями ещё нет, создаём одно тестовое. Удалите его кнопкой «Удалить» в админ-панели.
+// После удаления оно не вернётся (файл уже существует). Ссылку можно задать переменной TEST_CHANNEL в Render.
+if (!fs.existsSync(DB)) {
+  let icon = '';
+  try { icon = fs.readFileSync(path.join(__dirname, 'tasks.html'), 'utf8').match(/const DEFAULT_ICON = "(data:image\/png;base64,[A-Za-z0-9+\/=]+)"/)[1]; } catch {}
+  save([{ id: 'test-task', title: 'Тестовое задание', url: process.env.TEST_CHANNEL || 'https://t.me/your_channel', reward: 1, icon }]);
+}
 
 // Проверка подписи initData по документации Telegram. Возвращает пользователя или null.
 function verify(initData) {
@@ -53,7 +66,7 @@ async function checkSubscription(link, userId) {
     }
     const status = d.result && d.result.status;
     if (['creator', 'administrator', 'member'].includes(status) || (status === 'restricted' && d.result.is_member)) return { ok: true };
-    return { ok: false, error: 'Вы ещё не подписались. Подпишитесь и нажмите «Проверить задание» снова.' };
+    return { ok: false, notDone: true, error: 'Вы не выполнили задание' };
   } catch (e) {
     console.log('[check] network error:', e.message);
     return { ok: false, error: 'Не удалось связаться с Telegram. Попробуйте позже.' };
@@ -70,7 +83,7 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/tasks.html')) {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
       return res.end(fs.readFileSync(path.join(__dirname, 'tasks.html')));
     }
     if (!url.pathname.startsWith('/api/')) return send(res, 404, { error: 'Не найдено' });
@@ -87,6 +100,19 @@ http.createServer(async (req, res) => {
       return send(res, 200, { tasks, isAdmin, stars: me.stars });
     }
 
+    // Человек нажал «Начать»: запоминаем момент (доступно любому пользователю)
+    const st = url.pathname.match(/^\/api\/tasks\/([\w-]+)\/start$/);
+    if (req.method === 'POST' && st) {
+      const task = load().find(t => t.id === st[1]);
+      if (!task) return send(res, 404, { error: 'Задание не найдено' });
+      const users = loadUsers();
+      const me = users[uid] || (users[uid] = { stars: 0, done: [] });
+      me.started = me.started || {};
+      if (!me.started[task.id]) me.started[task.id] = Date.now();
+      saveUsers(users);
+      return send(res, 200, { ok: true });
+    }
+
     // Проверка выполнения задания (доступно любому пользователю)
     const chk = url.pathname.match(/^\/api\/tasks\/([\w-]+)\/check$/);
     if (req.method === 'POST' && chk) {
@@ -95,8 +121,12 @@ http.createServer(async (req, res) => {
       const users = loadUsers();
       const me = users[uid] || (users[uid] = { stars: 0, done: [] });
       if (me.done.includes(task.id)) return send(res, 200, { ok: true, already: true, stars: me.stars });
-      const result = await checkSubscription(task.url, user.id);
-      if (!result.ok) return send(res, 200, { ok: false, error: result.error });
+      const startedAt = (me.started || {})[task.id];
+      if (!startedAt || Date.now() - startedAt < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
+      if (STRICT_CHECK) {
+        const result = await checkSubscription(task.url, user.id);
+        if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, error: result.error });
+      }
       // Повторная проверка после await: на случай двух одновременных запросов
       const fresh = loadUsers();
       const cur = fresh[uid] || (fresh[uid] = { stars: 0, done: [] });
