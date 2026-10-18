@@ -91,6 +91,7 @@
   .go1888806478 { display: flex; flex-wrap: wrap; flex-grow: 1; }
   .go167266335 { background-color: rgb(49, 49, 49); font-size: 0.875rem; line-height: 1.43; letter-spacing: 0.01071em; color: rgb(255, 255, 255); align-items: center; padding: 6px 16px; border-radius: 4px; box-shadow: rgba(0, 0, 0, 0.2) 0px 3px 5px -1px, rgba(0, 0, 0, 0.14) 0px 6px 10px 0px, rgba(0, 0, 0, 0.12) 0px 1px 18px 0px; }
   .go3162094071 { padding-left: 20px; }
+  .go-ok { background: #3a3a45; color: #fff; border-radius: 24px; padding: 12px 24px; font-size: 16px; font-weight: 500; }
   .go3651055292 { background-color: rgb(211, 47, 47); }
   .go946087465 { display: flex; align-items: center; padding: 8px 0px; }
   .go3963613292 { width: 100%; position: relative; transform: translateX(0px); inset: 0px; min-width: 288px; }
@@ -189,7 +190,7 @@ async function api(path, opts = {}) {
 }
 const say = m => tg?.showAlert ? tg.showAlert(m) : alert(m);
 const ERR_ICON = '<svg viewBox="0 0 24 24" focusable="false" style="font-size: 20px; margin-inline-end: 8px; user-select: none; width: 1em; height: 1em; display: inline-block; fill: currentcolor; flex-shrink: 0;"><path d="M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,6.47 6.47,2 12,2M15.59,7L12,10.59L8.41,7L7,8.41L10.59,12L7,15.59L8.41,17L12,13.41L15.59,17L17,15.59L13.41,12L17,8.41L15.59,7Z"></path></svg>';
-const TOAST_MAX = 3, TOAST_LIFE = 3000, TOAST_IN = 520, TOAST_OUT = 380, toastItems = [];
+const TOAST_MAX = 1, TOAST_LIFE = 3000, TOAST_IN = 520, TOAST_OUT = 380, toastItems = [];
 function removeToast(item) {
   const i = toastItems.indexOf(item); if (i === -1) return;
   toastItems.splice(i, 1); clearTimeout(item.timer);
@@ -205,11 +206,10 @@ function toast(kind, text, withStar) { // kind: 'bad' (красная) или 'g
   try { const top = (tg?.safeAreaInset?.top || 0) + (tg?.contentSafeAreaInset?.top || 0); if (top > 0) box.style.marginTop = (top + 16) + 'px'; } catch (e) {}
   const el = document.createElement('div'); el.className = 'go1475592160 go1671063245';
   el.innerHTML = '<div class="notistack-CollapseWrapper" style="display: flex; width: 100%;"><div class="notistack-Snackbar go3963613292"><div class="go1888806478 notistack-MuiContent ' +
-    (kind === 'bad' ? 'notistack-MuiContent-error go167266335 go3651055292 css-1qqqvhh go3162094071' : 'go167266335 go3162094071') + '" role="alert"><div class="go946087465"></div></div></div></div>';
+    (kind === 'bad' ? 'notistack-MuiContent-error go167266335 go3651055292 css-1qqqvhh go3162094071' : 'go167266335 go3162094071 go-ok') + '" role="alert"><div class="go946087465"></div></div></div></div>';
   const inner = el.querySelector('.go946087465');
   if (kind === 'bad') { inner.insertAdjacentHTML('afterbegin', ERR_ICON); inner.appendChild(document.createTextNode(text)); }
   else {
-    el.querySelector('.go167266335').style.background = '#3a3a45';
     const sp = document.createElement('span'); sp.style.fontWeight = '600'; sp.textContent = text; inner.appendChild(sp);
     if (withStar) { const im = document.createElement('img'); im.src = STAR; im.width = 20; im.height = 20; im.alt = ''; im.style.marginLeft = '6px'; inner.appendChild(im); }
   }
