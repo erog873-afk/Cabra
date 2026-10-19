@@ -16,6 +16,10 @@ const PORT = process.env.PORT || 3000;
 const STRICT_CHECK = process.env.STRICT_CHECK !== '0';
 const MIN_WAIT_MS = 3000; // минимум между «Начать» и «Проверить задание»
 const WEEK_MS = 7 * 24 * 3600 * 1000;
+// TGrass: ключ и награда только из переменных окружения Render
+const TGRASS_API_URL = 'https://tgrass.space/offers';
+const TGRASS_API_KEY = process.env.TGRASS_API_KEY || '';
+const TGRASS_REWARD = Math.round((Number(process.env.TGRASS_REWARD) || 0.5) * 100) / 100;
 
 if (!BOT_TOKEN || !ADMIN_ID || !DATABASE_URL) {
   console.error('Задайте BOT_TOKEN, ADMIN_ID и DATABASE_URL');
@@ -57,7 +61,24 @@ async function initDb() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE TABLE IF NOT EXISTS leaders_cycle (id INT PRIMARY KEY, end_at BIGINT NOT NULL)`);
   await q(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
+  // Задания TGrass, которые были показаны конкретному пользователю
+  await q(`CREATE TABLE IF NOT EXISTS tgrass_offers (
+    user_id TEXT NOT NULL,
+    offer_key TEXT NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, offer_key))`);
 }
+
+// Иконка по умолчанию берётся из index.html (как у тестового задания)
+function readDefaultIcon() {
+  for (const f of ['index.html', 'tasks.html']) {
+    try { return fs.readFileSync(path.join(__dirname, f), 'utf8').match(/DEFAULT_ICON\s*=\s*"(data:image\/png;base64,[A-Za-z0-9+\/=]+)"/)[1]; } catch {}
+  }
+  return '';
+}
+const DEFAULT_ICON = readDefaultIcon();
 
 // Один раз переносим старые JSON-файлы (tasks.json, users.json, leaders-cycle.json), если они лежат рядом с сервером.
 async function migrateOnce() {
@@ -93,10 +114,7 @@ async function seedOnce() {
   if (flag.rowCount) return;
   const cnt = Number((await q(`SELECT count(*) AS c FROM tasks`)).rows[0].c);
   if (cnt === 0) {
-    let icon = '';
-    for (const f of ['index.html', 'tasks.html']) {
-      try { icon = fs.readFileSync(path.join(__dirname, f), 'utf8').match(/DEFAULT_ICON\s*=\s*"(data:image\/png;base64,[A-Za-z0-9+\/=]+)"/)[1]; break; } catch {}
-    }
+    const icon = DEFAULT_ICON;
     await q(`INSERT INTO tasks (id,title,url,reward,icon) VALUES ('test-task',$1,$2,1,$3) ON CONFLICT (id) DO NOTHING`,
       ['Тестовое задание', process.env.TEST_CHANNEL || 'https://t.me/your_channel', icon]);
   }
@@ -118,6 +136,59 @@ async function cycleEnd() {
   const r = await q(`UPDATE leaders_cycle SET end_at = $1 WHERE id = 1 AND end_at <= $2 RETURNING end_at`, [now + WEEK_MS, now]);
   if (r.rowCount) return Number(r.rows[0].end_at);
   return Number((await q(`SELECT end_at FROM leaders_cycle WHERE id = 1`)).rows[0].end_at);
+}
+
+// Ключ предложения: короткий хэш ссылки, он стабилен и не зависит от порядка в ответе TGrass
+const offerKey = link => crypto.createHash('sha1').update(String(link)).digest('hex').slice(0, 16);
+
+// Запрос к TGrass от имени пользователя. Возвращает { status, offers } или null при ошибке.
+async function tgrassRequest(user) {
+  if (!TGRASS_API_KEY) return null;
+  try {
+    const r = await fetch(TGRASS_API_URL, {
+      method: 'POST',
+      headers: { 'accept': 'application/json', 'Content-Type': 'application/json', 'Auth': TGRASS_API_KEY },
+      body: JSON.stringify({
+        tg_user_id: Number(user.id),
+        tg_login: user.username || null,
+        lang: user.language_code || 'ru',
+        is_premium: !!user.is_premium,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) { console.log('[tgrass] HTTP', r.status); return null; }
+    return await r.json();
+  } catch (e) {
+    console.log('[tgrass] ошибка запроса:', e.message);
+    return null;
+  }
+}
+
+// Сохраняем предложения TGrass, которые сейчас доступны пользователю (чтобы они не пропадали после выполнения)
+async function syncTgrass(user) {
+  const d = await tgrassRequest(user);
+  if (!d || d.status !== 'not_ok' || !Array.isArray(d.offers)) return;
+  for (const o of d.offers) {
+    if (!o || !/^https:\/\//.test(String(o.link || ''))) continue;
+    const title = String(o.title || o.name || (o.type === 'channel' ? 'Подписка на канал' : 'Задание')).slice(0, 80);
+    await q(`INSERT INTO tgrass_offers (user_id, offer_key, title, url) VALUES ($1,$2,$3,$4)
+      ON CONFLICT (user_id, offer_key) DO NOTHING`, [String(user.id), offerKey(o.link), title, String(o.link)]);
+  }
+}
+
+// Задание из TGrass, сохранённое для пользователя
+async function getTgrassTask(uid, id) {
+  const key = id.slice(3);
+  const r = await q(`SELECT offer_key, title, url FROM tgrass_offers WHERE user_id = $1 AND offer_key = $2`, [uid, key]);
+  if (!r.rowCount) return null;
+  const o = r.rows[0];
+  return { id, title: o.title, url: o.url, reward: TGRASS_REWARD, icon: DEFAULT_ICON, tg: true };
+}
+
+// Задание по id: обычное из таблицы tasks или задание TGrass
+async function findTask(uid, id) {
+  if (id.startsWith('tg-')) return getTgrassTask(uid, id);
+  return getTask(id);
 }
 
 async function getTask(id) {
@@ -223,15 +294,19 @@ async function handle(req, res) {
 
     // Список заданий + баланс и отметки «выполнено»
     if (req.method === 'GET' && url.pathname === '/api/tasks') {
+      await syncTgrass(user);
       const tasks = (await q(`SELECT id, title, url, reward::float8 AS reward, icon FROM tasks ORDER BY created_at, id`)).rows;
+      const tg = (await q(`SELECT offer_key, title, url FROM tgrass_offers WHERE user_id = $1 ORDER BY created_at, offer_key`, [uid])).rows
+        .map(o => ({ id: 'tg-' + o.offer_key, title: o.title, url: o.url, reward: TGRASS_REWARD, icon: DEFAULT_ICON }));
       const me = (await q(`SELECT stars::float8 AS stars, done FROM users WHERE id = $1`, [uid])).rows[0] || { stars: 0, done: [] };
-      return send(res, 200, { tasks: tasks.map(t => ({ ...t, done: me.done.includes(t.id) })), isAdmin, stars: Number(me.stars) });
+      const all = [...tasks, ...tg];
+      return send(res, 200, { tasks: all.map(t => ({ ...t, done: me.done.includes(t.id) })), isAdmin, stars: Number(me.stars) });
     }
 
     // Нажал «Начать»: запоминаем момент
     const st = url.pathname.match(/^\/api\/tasks\/([\w-]+)\/start$/);
     if (req.method === 'POST' && st) {
-      const task = await getTask(st[1]);
+      const task = await findTask(uid, st[1]);
       if (!task) return send(res, 404, { error: 'Задание не найдено' });
       await q(`UPDATE users SET started = started || jsonb_build_object($2::text, $3::bigint)
         WHERE id = $1 AND NOT (started ? $2::text)`, [uid, task.id, Date.now()]);
@@ -241,13 +316,18 @@ async function handle(req, res) {
     // Проверка выполнения задания
     const chk = url.pathname.match(/^\/api\/tasks\/([\w-]+)\/check$/);
     if (req.method === 'POST' && chk) {
-      const task = await getTask(chk[1]);
+      const task = await findTask(uid, chk[1]);
       if (!task) return send(res, 404, { error: 'Задание не найдено' });
       const me = (await q(`SELECT stars::float8 AS stars, done, started FROM users WHERE id = $1`, [uid])).rows[0];
       if (me.done.includes(task.id)) return send(res, 200, { ok: true, already: true, stars: Number(me.stars) });
       const startedAt = Number((me.started || {})[task.id]);
       if (!startedAt || Date.now() - startedAt < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
-      if (STRICT_CHECK) {
+      if (task.tg) {
+        // Задание TGrass считается выполненным, когда TGrass отвечает status: ok
+        const d = await tgrassRequest(user);
+        if (!d) return send(res, 200, { ok: false, error: 'Не удалось проверить задание TGrass. Попробуйте позже.' });
+        if (d.status !== 'ok') return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
+      } else if (STRICT_CHECK) {
         const result = await checkSubscription(task.url, user.id);
         if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, error: result.error });
       }
