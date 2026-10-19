@@ -152,7 +152,7 @@ const offerKey = link => crypto.createHash('sha1').update(String(link)).digest('
 
 // Запрос к TGrass от имени пользователя. Возвращает { status, offers } или null при ошибке.
 async function tgrassRequest(user) {
-  if (!TGRASS_API_KEY) return null;
+  if (!TGRASS_API_KEY) { console.log('[tgrass] TGRASS_API_KEY не задан, задания TGrass не запрашиваются'); return null; }
   try {
     const r = await fetch(TGRASS_API_URL, {
       method: 'POST',
@@ -166,7 +166,9 @@ async function tgrassRequest(user) {
       signal: AbortSignal.timeout(8000),
     });
     if (!r.ok) { console.log('[tgrass] HTTP', r.status); return null; }
-    return await r.json();
+    const j = await r.json();
+    console.log('[tgrass] user', user.id, 'status:', j.status, 'offers:', Array.isArray(j.offers) ? j.offers.length : 0);
+    return j;
   } catch (e) {
     console.log('[tgrass] ошибка запроса:', e.message);
     return null;
@@ -187,7 +189,7 @@ async function syncTgrass(user) {
 
 // Запрос к BotoHub. Возвращает ответ API или null при ошибке.
 async function botohubRequest(user, skip) {
-  if (!BOTOHUB_TOKEN) return null;
+  if (!BOTOHUB_TOKEN) { console.log('[botohub] BOTOHUB_TOKEN не задан, задания BotoHub не запрашиваются'); return null; }
   try {
     const r = await fetch(BOTOHUB_API_URL, {
       method: 'POST',
@@ -197,7 +199,9 @@ async function botohubRequest(user, skip) {
     });
     if (r.status === 401) console.log('[botohub] 401: проверьте BOTOHUB_TOKEN');
     if (!r.ok) return null;
-    return await r.json();
+    const j = await r.json();
+    console.log('[botohub] user', user.id, 'tasks:', (j.tasks || []).length, 'completed:', !!j.completed, 'skip:', !!j.skip, 'fake:', !!j.fake, 'prev_success:', !!j.prev_success);
+    return j;
   } catch (e) {
     console.log('[botohub] ошибка запроса:', e.message);
     return null;
