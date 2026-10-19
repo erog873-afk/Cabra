@@ -2,7 +2,7 @@
 // ADMIN_ID — ваш Telegram ID (число). Только он может добавлять и удалять задания.
 // DATABASE_URL — строка подключения к PostgreSQL (в Render: Internal или External Database URL).
 // Проверка заданий: бот должен быть АДМИНИСТРАТОРОМ канала/группы, на которую подписываются.
-const http = require('http');
+cюonst http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
