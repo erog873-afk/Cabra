@@ -168,6 +168,7 @@ async function tgrassRequest(user) {
     if (!r.ok) { console.log('[tgrass] HTTP', r.status); return null; }
     const j = await r.json();
     console.log('[tgrass] user', user.id, 'status:', j.status, 'offers:', Array.isArray(j.offers) ? j.offers.length : 0);
+    console.log('[tgrass] raw:', JSON.stringify(j).slice(0, 1500));
     return j;
   } catch (e) {
     console.log('[tgrass] ошибка запроса:', e.message);
