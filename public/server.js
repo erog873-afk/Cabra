@@ -1,281 +1,54 @@
-// Запуск: BOT_TOKEN=... ADMIN_ID=123456789 DATABASE_URL=postgres://... node server.js
+// Запуск: BOT_TOKEN=... ADMIN_ID=123456789 node server.js   (нужен Node 18+, зависимостей нет)
 // ADMIN_ID — ваш Telegram ID (число). Только он может добавлять и удалять задания.
-// DATABASE_URL — строка подключения к PostgreSQL (в Render: Internal или External Database URL).
 // Проверка заданий: бот должен быть АДМИНИСТРАТОРОМ канала/группы, на которую подписываются.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { Pool } = require('pg');
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const ADMIN_ID = process.env.ADMIN_ID;
-const DATABASE_URL = process.env.DATABASE_URL;
+// ТЕСТ: значения по умолчанию. Перед настоящим запуском удалите их и задайте переменные в Render.
+const BOT_TOKEN = process.env.BOT_TOKEN || '8758871773:AAFoZe3Mc2tX8e_JwXdE1xgCJ6Oh3pRzB0s';
+const ADMIN_ID = process.env.ADMIN_ID || '8642237301';
 const PORT = process.env.PORT || 3000;
-// Проверка подписки включена всегда; отключить можно только STRICT_CHECK=0
-const STRICT_CHECK = process.env.STRICT_CHECK !== '0';
-const MIN_WAIT_MS = 3000; // минимум между «Начать» и «Проверить задание»
+// Как засчитывается задание: человек нажимает «Начать» (переходит по ссылке), возвращается и жмёт «Проверить задание» —
+// награда зачисляется сразу. STRICT_CHECK=1 в Render включает настоящую проверку подписки через Telegram
+// (тогда бот должен быть администратором канала).
+const STRICT_CHECK = process.env.STRICT_CHECK !== '0'; // проверка подписки включена всегда; отключить можно только STRICT_CHECK=0
+const MIN_WAIT_MS = 3000; // минимум секунд между «Начать» и «Проверить задание»
+if (!BOT_TOKEN || !ADMIN_ID) { console.error('Задайте BOT_TOKEN и ADMIN_ID'); process.exit(1); }
+
+const DB = path.join(__dirname, 'tasks.json');
+const USERS = path.join(__dirname, 'users.json'); // { "<telegram id>": { stars: 0, done: ["<task id>"] } }
+const readJson = (f, def) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return def; } };
+const load = () => readJson(DB, []);
+const save = t => fs.writeFileSync(DB, JSON.stringify(t, null, 2));
+const loadUsers = () => readJson(USERS, {});
+const saveUsers = u => fs.writeFileSync(USERS, JSON.stringify(u, null, 2));
+
+// Таймер лидеров: 7 дней. Конец цикла хранится в файле; когда он наступает, начинается новый цикл на 7 дней.
+const CYCLE = path.join(__dirname, 'leaders-cycle.json');
 const WEEK_MS = 7 * 24 * 3600 * 1000;
-// BotoHub: токен и награда только из переменных окружения Render
-const BOTOHUB_API_URL = 'https://botohub.me/get-tasks';
-const BOTOHUB_TOKEN = process.env.BOTOHUB_TOKEN || '';
-const BOTOHUB_REWARD = Math.round((Number(process.env.BOTOHUB_REWARD) || 0.5) * 100) / 100;
-
-// Flyer-подобный сервис заданий: ключ, адреса и награда только из переменных окружения Render
-const FLYER_KEY = process.env.FLYER_KEY || '';
-const FLYER_GET_URL = process.env.FLYER_GET_URL || 'https://api.flyerservice.io/get_tasks';     // адрес «получение списка заданий»
-const FLYER_CHECK_URL = process.env.FLYER_CHECK_URL || 'https://api.flyerservice.io/check_task'; // адрес «проверка статуса задания»
-const FLYER_DONE_STATUS = (process.env.FLYER_DONE_STATUS || 'completed').toLowerCase(); // статус «выполнено»
-const FLYER_WEBHOOK_SECRET = process.env.FLYER_WEBHOOK_SECRET || ''; // необязательно: секрет в адресе вебхука
-const FLYER_LIMIT = Math.min(10, Math.max(1, Number(process.env.FLYER_LIMIT) || 5));
-const FLYER_REWARD = Math.round((Number(process.env.FLYER_REWARD) || 0.5) * 100) / 100;
-
-if (!BOT_TOKEN || !ADMIN_ID || !DATABASE_URL) {
-  console.error('Задайте BOT_TOKEN, ADMIN_ID и DATABASE_URL');
-  process.exit(1);
-}
-
-// Render PostgreSQL требует SSL. Отключить можно переменной DATABASE_SSL=0 (например, для локальной базы).
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: process.env.DATABASE_SSL === '0' ? false : { rejectUnauthorized: false },
-});
-const q = (text, params) => pool.query(text, params);
-
-// ---------- База данных ----------
-async function initDb() {
-  await q(`CREATE TABLE IF NOT EXISTS tasks (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    url TEXT NOT NULL,
-    reward NUMERIC(12,2) NOT NULL,
-    icon TEXT NOT NULL DEFAULT '',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
-  await q(`CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL DEFAULT '',
-    photo TEXT NOT NULL DEFAULT '',
-    stars NUMERIC(14,2) NOT NULL DEFAULT 0,
-    done TEXT[] NOT NULL DEFAULT '{}',
-    started JSONB NOT NULL DEFAULT '{}'::jsonb,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
-  await q(`CREATE INDEX IF NOT EXISTS users_stars_idx ON users (stars DESC)`);
-  // История всех изменений баланса: что, сколько и за что начислено
-  await q(`CREATE TABLE IF NOT EXISTS star_log (
-    id BIGSERIAL PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    delta NUMERIC(14,2) NOT NULL,
-    reason TEXT NOT NULL,
-    ref TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
-  await q(`CREATE TABLE IF NOT EXISTS leaders_cycle (id INT PRIMARY KEY, end_at BIGINT NOT NULL)`);
-  await q(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
-  // BotoHub: текущая ссылка пользователя и флаг фейка
-  await q(`CREATE TABLE IF NOT EXISTS botohub_state (
-    user_id TEXT PRIMARY KEY,
-    link TEXT,
-    fake BOOLEAN NOT NULL DEFAULT false)`);
-  // TGrass удалён: убираем старую таблицу с сохранёнными заданиями
-  await q(`DROP TABLE IF EXISTS tgrass_offers`);
-  // Задания Flyer, показанные пользователю (signature нужен для проверки статуса)
-  await q(`CREATE TABLE IF NOT EXISTS flyer_offers (
-    user_id TEXT NOT NULL,
-    offer_key TEXT NOT NULL,
-    signature TEXT NOT NULL,
-    title TEXT NOT NULL,
-    url TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (user_id, offer_key))`);
-}
-
-// Иконка по умолчанию берётся из index.html (как у тестового задания)
-function readDefaultIcon() {
-  for (const f of ['index.html', 'tasks.html']) {
-    try { return fs.readFileSync(path.join(__dirname, f), 'utf8').match(/DEFAULT_ICON\s*=\s*"(data:image\/png;base64,[A-Za-z0-9+\/=]+)"/)[1]; } catch {}
-  }
-  return '';
-}
-const DEFAULT_ICON = readDefaultIcon();
-
-// Один раз переносим старые JSON-файлы (tasks.json, users.json, leaders-cycle.json), если они лежат рядом с сервером.
-async function migrateOnce() {
-  const flag = await q(`SELECT 1 FROM meta WHERE key = 'json_migrated'`);
-  if (flag.rowCount) return;
-  const readJ = f => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, f), 'utf8')); } catch { return null; } };
-  const tasks = readJ('tasks.json');
-  if (Array.isArray(tasks)) {
-    for (const t of tasks) {
-      await q(`INSERT INTO tasks (id,title,url,reward,icon) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO NOTHING`,
-        [String(t.id), String(t.title || ''), String(t.url || ''), Number(t.reward) || 0, String(t.icon || '')]);
-    }
-    console.log('[migrate] заданий перенесено:', tasks.length);
-  }
-  const users = readJ('users.json');
-  if (users && typeof users === 'object') {
-    for (const [id, u] of Object.entries(users)) {
-      await q(`INSERT INTO users (id,name,photo,stars,done,started) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`,
-        [id, u.name || '', u.photo || '', Number(u.stars) || 0, Array.isArray(u.done) ? u.done : [], JSON.stringify(u.started || {})]);
-    }
-    console.log('[migrate] пользователей перенесено:', Object.keys(users).length);
-  }
-  const cyc = readJ('leaders-cycle.json');
-  if (cyc && Number(cyc.end)) {
-    await q(`INSERT INTO leaders_cycle (id,end_at) VALUES (1,$1) ON CONFLICT (id) DO NOTHING`, [Number(cyc.end)]);
-  }
-  await q(`INSERT INTO meta (key,value) VALUES ('json_migrated','1') ON CONFLICT (key) DO NOTHING`);
-}
-
-// Тестовое задание создаём один раз на новой базе. После удаления оно не вернётся.
-async function seedOnce() {
-  const flag = await q(`SELECT 1 FROM meta WHERE key = 'seeded'`);
-  if (flag.rowCount) return;
-  const cnt = Number((await q(`SELECT count(*) AS c FROM tasks`)).rows[0].c);
-  if (cnt === 0) {
-    const icon = DEFAULT_ICON;
-    await q(`INSERT INTO tasks (id,title,url,reward,icon) VALUES ('test-task',$1,$2,1,$3) ON CONFLICT (id) DO NOTHING`,
-      ['Тестовое задание', process.env.TEST_CHANNEL || 'https://t.me/your_channel', icon]);
-  }
-  await q(`INSERT INTO meta (key,value) VALUES ('seeded','1') ON CONFLICT (key) DO NOTHING`);
-}
-
-// Пользователь заводится при первом заходе; имя и фото обновляются, если изменились.
-async function touchUser(uid, name, photo) {
-  await q(`INSERT INTO users (id,name,photo) VALUES ($1,$2,$3)
-    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, photo = EXCLUDED.photo, updated_at = now()
-    WHERE users.name IS DISTINCT FROM EXCLUDED.name OR users.photo IS DISTINCT FROM EXCLUDED.photo`,
-    [uid, name, photo]);
-}
-
-// Таймер лидеров: 7 дней. Когда цикл заканчивается, начинается новый.
-async function cycleEnd() {
+function cycleEnd() {
+  let end = 0;
+  try { end = Number(JSON.parse(fs.readFileSync(CYCLE, 'utf8')).end) || 0; } catch {}
   const now = Date.now();
-  await q(`INSERT INTO leaders_cycle (id,end_at) VALUES (1,$1) ON CONFLICT (id) DO NOTHING`, [now + WEEK_MS]);
-  const r = await q(`UPDATE leaders_cycle SET end_at = $1 WHERE id = 1 AND end_at <= $2 RETURNING end_at`, [now + WEEK_MS, now]);
-  if (r.rowCount) return Number(r.rows[0].end_at);
-  return Number((await q(`SELECT end_at FROM leaders_cycle WHERE id = 1`)).rows[0].end_at);
-}
-
-// Ключ предложения: короткий хэш ссылки, он стабилен
-const offerKey = link => crypto.createHash('sha1').update(String(link)).digest('hex').slice(0, 16);
-
-// Запрос к BotoHub. Возвращает ответ API или null при ошибке.
-async function botohubRequest(user, skip) {
-  if (!BOTOHUB_TOKEN) { console.log('[botohub] BOTOHUB_TOKEN не задан, задания BotoHub не запрашиваются'); return null; }
-  try {
-    const r = await fetch(BOTOHUB_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Auth': BOTOHUB_TOKEN },
-      body: JSON.stringify({ chat_id: Number(user.id), is_task: true, skip: !!skip }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (r.status === 401) console.log('[botohub] 401: проверьте BOTOHUB_TOKEN');
-    if (!r.ok) return null;
-    const j = await r.json();
-    console.log('[botohub] user', user.id, 'tasks:', (j.tasks || []).length, 'completed:', !!j.completed, 'skip:', !!j.skip, 'fake:', !!j.fake, 'prev_success:', !!j.prev_success);
-    return j;
-  } catch (e) {
-    console.log('[botohub] ошибка запроса:', e.message);
-    return null;
+  if (!end || end <= now) {
+    end = now + WEEK_MS;
+    try { fs.writeFileSync(CYCLE, JSON.stringify({ end })); } catch {}
   }
+  return end;
 }
 
-// Синхронизация с BotoHub. Если предыдущая ссылка выполнена, начисляем награду один раз и берём следующую.
-async function botohubSync(user, uid, skip) {
-  const d = await botohubRequest(user, skip);
-  if (!d) return { failed: true, awarded: false };
-  await q(`INSERT INTO botohub_state (user_id, fake) VALUES ($1,$2)
-    ON CONFLICT (user_id) DO UPDATE SET fake = EXCLUDED.fake`, [uid, !!d.fake]);
-  if (d.fake) {
-    await q(`UPDATE botohub_state SET link = NULL WHERE user_id = $1`, [uid]);
-    return { failed: false, awarded: false, fake: true };
+// ТЕСТ: если файла с заданиями ещё нет, создаём одно тестовое. Удалите его кнопкой «Удалить» в админ-панели.
+// После удаления оно не вернётся (файл уже существует). Ссылку можно задать переменной TEST_CHANNEL в Render.
+if (!fs.existsSync(DB)) {
+  let icon = '';
+  for (const f of ['index.html', 'tasks.html']) {
+    try { icon = fs.readFileSync(path.join(__dirname, f), 'utf8').match(/DEFAULT_ICON\s*=\s*"(data:image\/png;base64,[A-Za-z0-9+\/=]+)"/)[1]; break; } catch {}
   }
-  const prev = (await q(`SELECT link FROM botohub_state WHERE user_id = $1`, [uid])).rows[0];
-  let awarded = false;
-  if (d.prev_success && prev && prev.link) {
-    const key = 'bh-' + offerKey(prev.link);
-    const claimed = await q(`UPDATE users SET stars = ROUND(stars + $2::numeric, 2), done = array_append(done, $3::text)
-      WHERE id = $1 AND NOT ($3::text = ANY(done)) RETURNING stars`, [uid, BOTOHUB_REWARD, key]);
-    if (claimed.rowCount) {
-      awarded = true;
-      await q(`INSERT INTO star_log (user_id, delta, reason, ref) VALUES ($1, $2, 'botohub', $3)`, [uid, BOTOHUB_REWARD, key]);
-    }
-  }
-  const next = (!d.completed && !d.skip && Array.isArray(d.tasks) && /^https:\/\//.test(String(d.tasks[0] || '')))
-    ? String(d.tasks[0]) : null;
-  await q(`UPDATE botohub_state SET link = $2 WHERE user_id = $1`, [uid, next]);
-  return { failed: false, awarded, next };
+  save([{ id: 'test-task', title: 'Тестовое задание', url: process.env.TEST_CHANNEL || 'https://t.me/your_channel', reward: 1, icon }]);
 }
 
-// Задание BotoHub, если у пользователя сейчас есть активная ссылка
-async function getBotohubTask(uid, id) {
-  const r = (await q(`SELECT link, fake FROM botohub_state WHERE user_id = $1`, [uid])).rows[0];
-  if (!r || r.fake || !r.link || 'bh-' + offerKey(r.link) !== id) return null;
-  return { id, title: 'Задание BotoHub', url: r.link, reward: BOTOHUB_REWARD, icon: DEFAULT_ICON, bh: true };
-}
-
-// Запрос к Flyer. Возвращает JSON-ответ или null при ошибке.
-async function flyerPost(url, payload) {
-  try {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!r.ok) { console.log('[flyer] HTTP', r.status, url); return null; }
-    return await r.json();
-  } catch (e) {
-    console.log('[flyer] ошибка запроса:', e.message);
-    return null;
-  }
-}
-
-// Получаем задания Flyer и сохраняем их для пользователя
-async function syncFlyer(user) {
-  if (!FLYER_KEY || !FLYER_GET_URL) return;
-  const d = await flyerPost(FLYER_GET_URL, {
-    key: FLYER_KEY,
-    user_id: Number(user.id),
-    language_code: user.language_code || 'ru',
-    limit: FLYER_LIMIT,
-  });
-  if (!d || !Array.isArray(d.result)) {
-    if (d) console.log('[flyer] ответ без result:', JSON.stringify(d).slice(0, 300));
-    return;
-  }
-  console.log('[flyer] user', user.id, 'tasks:', d.result.length, 'raw:', JSON.stringify(d.result).slice(0, 800));
-  for (const t of d.result) {
-    if (!t || !t.signature || t.is_ios_ban) continue;
-    const link = Array.isArray(t.links) ? t.links.find(l => /^https:\/\//.test(String(l))) : null;
-    if (!link) continue;
-    const title = String(t.name || (t.task === 'subscribe channel' ? 'Подписка на канал' : 'Задание')).slice(0, 80);
-    await q(`INSERT INTO flyer_offers (user_id, offer_key, signature, title, url) VALUES ($1,$2,$3,$4,$5)
-      ON CONFLICT (user_id, offer_key) DO NOTHING`,
-      [String(user.id), offerKey(t.signature), String(t.signature), title, String(link)]);
-  }
-}
-
-// Задание Flyer, сохранённое для пользователя
-async function getFlyerTask(uid, id) {
-  const r = await q(`SELECT offer_key, signature, title, url FROM flyer_offers WHERE user_id = $1 AND offer_key = $2`, [uid, id.slice(3)]);
-  if (!r.rowCount) return null;
-  const o = r.rows[0];
-  return { id, title: o.title, url: o.url, reward: FLYER_REWARD, icon: DEFAULT_ICON, fl: true, signature: o.signature };
-}
-
-// Задание по id: обычное из таблицы tasks или задание BotoHub
-async function findTask(uid, id) {
-  if (id.startsWith('bh-')) return getBotohubTask(uid, id);
-  if (id.startsWith('fl-')) return getFlyerTask(uid, id);
-  return getTask(id);
-}
-
-async function getTask(id) {
-  const r = await q(`SELECT id, title, url, reward::float8 AS reward, icon FROM tasks WHERE id = $1`, [id]);
-  return r.rows[0] || null;
-}
-
-// ---------- Telegram ----------
 // Проверка подписи initData по документации Telegram. Возвращает пользователя или null.
 function verify(initData) {
   if (!initData) return null;
@@ -287,11 +60,12 @@ function verify(initData) {
   const calc = crypto.createHmac('sha256', secret).update(check).digest('hex');
   const ok = calc.length === hash.length && crypto.timingSafeEqual(Buffer.from(calc), Buffer.from(hash));
   if (!ok) return null;
-  if (Date.now() / 1000 - Number(params.get('auth_date')) > 86400) return null;
+  if (Date.now() / 1000 - Number(params.get('auth_date')) > 86400) return null; // старше суток
   try { return JSON.parse(params.get('user')); } catch { return null; }
 }
 
 // Подписан ли пользователь на канал/группу из ссылки https://t.me/<username>.
+// Возвращает { ok: true } или { ok: false, error: 'текст для пользователя' }.
 async function checkSubscription(link, userId) {
   const m = String(link).match(/^https:\/\/t\.me\/([A-Za-z][A-Za-z0-9_]{3,31})\/?(?:[?#].*)?$/);
   if (!m) return { ok: false, error: 'Для этого задания автоматическая проверка недоступна: нужна публичная ссылка вида https://t.me/название.' };
@@ -315,13 +89,66 @@ async function checkSubscription(link, userId) {
   }
 }
 
-// ---------- HTTP ----------
+// ---------- Tgrass ----------
+// Ключ задайте переменной TGRASS_API_KEY в Render. Награда за каждое задание — TGRASS_REWARD (по умолчанию 1).
+const TGRASS_API_URL = 'https://tgrass.space/offers';
+const TGRASS_API_KEY = process.env.TGRASS_API_KEY || '';
+const TGRASS_REWARD = Number(process.env.TGRASS_REWARD) || 1;
+const tgId = link => 'tg-' + crypto.createHash('sha1').update(String(link)).digest('hex').slice(0, 12);
+
+// Запрос к Tgrass. Возвращает JSON ответа или null (ошибка/нет ключа).
+async function tgrassFetch(user) {
+  if (!TGRASS_API_KEY) return null;
+  try {
+    const r = await fetch(TGRASS_API_URL, {
+      method: 'POST',
+      headers: { accept: 'application/json', 'Content-Type': 'application/json', Auth: TGRASS_API_KEY },
+      body: JSON.stringify({
+        tg_user_id: Number(user.id),
+        tg_login: user.username || null,
+        lang: user.language_code || 'ru',
+        is_premium: !!user.is_premium
+      }),
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!r.ok) { console.log('[tgrass] HTTP', r.status); return null; }
+    return await r.json();
+  } catch (e) { console.log('[tgrass] error:', e.message); return null; }
+}
+
+// Задания Tgrass для списка. Запоминаем, какие офферы показали (tgPending): награда выдаётся только за них.
+async function tgrassTasks(user, uid) {
+  const d = await tgrassFetch(user);
+  if (!d) return [];
+  const users = loadUsers();
+  const me = users[uid] || (users[uid] = { stars: 0, done: [] });
+  const doneSet = new Set(me.tgDone || []);
+  const ru = (user.language_code || 'ru') !== 'en';
+  const names = ru
+    ? { channel: 'Подписаться на канал', bot: 'Запустить бота', other: 'Выполнить задание' }
+    : { channel: 'Subscribe to channel', bot: 'Start the bot', other: 'Complete the task' };
+  let list = [];
+  if (d.status === 'not_ok') {
+    list = (d.offers || [])
+      .filter(o => o && /^https:\/\//.test(String(o.link)))
+      .map(o => ({
+        id: tgId(o.link),
+        title: String(o.name || o.title || names[o.type] || names.other).slice(0, 80),
+        url: o.link, reward: TGRASS_REWARD, icon: '', done: false, partner: true
+      }))
+      .filter(t => !doneSet.has(t.id));
+  }
+  const ids = list.map(t => t.id);
+  if (JSON.stringify(me.tgPending || []) !== JSON.stringify(ids)) { me.tgPending = ids; saveUsers(users); }
+  return list;
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.mp3': 'audio/mpeg'
 };
-const PRIVATE = new Set(['server.js', 'package.json', 'package-lock.json', 'tasks.json', 'users.json', 'leaders-cycle.json']);
+const PRIVATE = new Set(['server.js', 'package.json', 'package-lock.json']);
 
 const send = (res, code, data) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
 const body = req => new Promise((ok, no) => {
@@ -329,18 +156,11 @@ const body = req => new Promise((ok, no) => {
   req.on('end', () => { try { ok(JSON.parse(b || '{}')); } catch (e) { no(e); } });
 });
 
-async function handle(req, res) {
+http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
-    // Вебхук Flyer: уведомление об отписке (status: abort). Только записываем в лог, баланс не трогаем.
-    if (req.method === 'POST' && (url.pathname === '/webhook/flyer' || url.pathname.startsWith('/webhook/flyer/'))) {
-      if (FLYER_WEBHOOK_SECRET && url.pathname !== '/webhook/flyer/' + FLYER_WEBHOOK_SECRET) return send(res, 404, { error: 'Не найдено' });
-      const d = await body(req).catch(() => ({}));
-      console.log('[flyer webhook]', JSON.stringify(d).slice(0, 500));
-      return send(res, 200, { ok: true });
-    }
-
-    // Статика: index.html и файлы рядом с ним. Служебные файлы отдавать нельзя.
+    // Статика: index.html и подключаемые к нему файлы (cases-store.js, balance-widget.js, roulette.html, картинки...).
+    // Служебные файлы (server.js, package.json, *.json с данными) отдавать нельзя.
     if (!url.pathname.startsWith('/api/')) {
       if (req.method !== 'GET') return send(res, 404, { error: 'Не найдено' });
       const name = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html';
@@ -354,109 +174,101 @@ async function handle(req, res) {
     }
 
     const user = verify(req.headers['x-init-data']);
-    if (!user) {
-      console.log('[auth] 401: initData ' + (req.headers['x-init-data'] ? 'не прошла проверку подписи' : 'отсутствует'));
-      return send(res, 401, { error: 'Откройте приложение из Telegram' });
-    }
+    if (!user) { console.log('[auth] 401: initData ' + (req.headers['x-init-data'] ? 'не прошла проверку подписи (BOT_TOKEN не от этого бота?)' : 'отсутствует (открыто не из Telegram)')); return send(res, 401, { error: 'Откройте приложение из Telegram' }); }
     const isAdmin = String(user.id) === String(ADMIN_ID);
+    if (url.pathname.startsWith('/api/admin/') && !isAdmin) console.log('[auth] 403: id ' + user.id + ' не равен ADMIN_ID');
     const uid = String(user.id);
-    const nm = [user.first_name, user.last_name].filter(Boolean).join(' ').slice(0, 40) || user.username || ('ID ' + uid.slice(-4));
-    const ph = typeof user.photo_url === 'string' && /^https:\/\//.test(user.photo_url) ? user.photo_url : '';
-    await touchUser(uid, nm, ph);
 
-    // Таблица лидеров: топ-50 по балансу + место текущего пользователя (чужие ID не отдаём)
+    // Запоминаем имя и фото для таблицы лидеров (пишем на диск, только если что-то изменилось)
+    {
+      const all = loadUsers();
+      const rec = all[uid];
+      const nm = [user.first_name, user.last_name].filter(Boolean).join(' ').slice(0, 40) || user.username || ('ID ' + uid.slice(-4));
+      const ph = typeof user.photo_url === 'string' && /^https:\/\//.test(user.photo_url) ? user.photo_url : '';
+      if (rec && (rec.name !== nm || rec.photo !== ph)) { rec.name = nm; rec.photo = ph; saveUsers(all); }
+    }
+
+    // Таблица лидеров: топ-50 по балансу (звёздам) + место текущего пользователя (чужие ID не отдаём)
     if (req.method === 'GET' && url.pathname === '/api/leaders') {
-      const rows = (await q(`SELECT id, name, photo, stars::float8 AS stars FROM users
-        WHERE stars > 0 ORDER BY stars DESC, id LIMIT 50`)).rows;
-      const total = Number((await q(`SELECT count(*) AS c FROM users WHERE stars > 0`)).rows[0].c);
-      const mine = (await q(`SELECT name, photo, stars::float8 AS stars FROM users WHERE id = $1`, [uid])).rows[0]
-        || { name: '', photo: '', stars: 0 };
-      const myRank = mine.stars > 0
-        ? Number((await q(`SELECT count(*) + 1 AS r FROM users WHERE stars > $1`, [mine.stars])).rows[0].r)
-        : null;
-      const top = rows.map((x, i) => ({ rank: i + 1, name: x.name || ('ID ' + x.id.slice(-4)), photo: x.photo, stars: x.stars, me: x.id === uid }));
-      const endsAt = await cycleEnd();
-      return send(res, 200, { top, me: { rank: myRank, stars: mine.stars, photo: mine.photo, name: mine.name }, total, endsAt });
+      const all = loadUsers();
+      const list = Object.entries(all)
+        .filter(([, u]) => u && Number(u.stars) > 0)
+        .map(([id, u]) => ({ id, name: u.name || ('ID ' + id.slice(-4)), photo: u.photo || '', stars: Number(u.stars) }))
+        .sort((a, b) => b.stars - a.stars);
+      const myIdx = list.findIndex(x => x.id === uid);
+      const top = list.slice(0, 50).map((x, i) => ({ rank: i + 1, name: x.name, photo: x.photo, stars: x.stars, me: x.id === uid }));
+      const meStars = Number((all[uid] || {}).stars) || 0;
+      const mine = all[uid] || {};
+      return send(res, 200, { top, me: { rank: myIdx >= 0 ? myIdx + 1 : null, stars: meStars, photo: mine.photo || '', name: mine.name || '' }, total: list.length, endsAt: cycleEnd() });
     }
 
-    // Список заданий + баланс и отметки «выполнено»
+    // Список заданий + баланс и отметки «выполнено» для этого пользователя
     if (req.method === 'GET' && url.pathname === '/api/tasks') {
-      await syncFlyer(user);
-      // Получаем текущую ссылку BotoHub, если её ещё нет (или предыдущая уже выполнена)
-      if (BOTOHUB_TOKEN) {
-        const cur = (await q(`SELECT link, fake FROM botohub_state WHERE user_id = $1`, [uid])).rows[0];
-        if (!cur || (!cur.fake && !cur.link)) await botohubSync(user, uid, false);
-      }
-      const bhRow = (await q(`SELECT link, fake FROM botohub_state WHERE user_id = $1`, [uid])).rows[0];
-      const bh = (bhRow && !bhRow.fake && bhRow.link)
-        ? [{ id: 'bh-' + offerKey(bhRow.link), title: 'Задание BotoHub', url: bhRow.link, reward: BOTOHUB_REWARD, icon: DEFAULT_ICON }]
-        : [];
-      const tasks = (await q(`SELECT id, title, url, reward::float8 AS reward, icon FROM tasks ORDER BY created_at, id`)).rows;
-      const me = (await q(`SELECT stars::float8 AS stars, done FROM users WHERE id = $1`, [uid])).rows[0] || { stars: 0, done: [] };
-      // Выполненные задания Flyer из списка убираем
-      const fl = (await q(`SELECT offer_key, title, url FROM flyer_offers WHERE user_id = $1 ORDER BY created_at, offer_key`, [uid])).rows
-        .filter(o => !me.done.includes('fl-' + o.offer_key))
-        .map(o => ({ id: 'fl-' + o.offer_key, title: o.title, url: o.url, reward: FLYER_REWARD, icon: DEFAULT_ICON }));
-      const all = [...tasks, ...fl, ...bh];
-      return send(res, 200, { tasks: all.map(t => ({ ...t, done: me.done.includes(t.id) })), isAdmin, stars: Number(me.stars) });
+      const me = loadUsers()[uid] || { stars: 0, done: [] };
+      const tasks = load().map(t => ({ ...t, done: me.done.includes(t.id) }));
+      const partner = await tgrassTasks(user, uid);
+      return send(res, 200, { tasks: tasks.concat(partner), isAdmin, stars: me.stars });
     }
 
-    // Нажал «Начать»: запоминаем момент
+    // Человек нажал «Начать»: запоминаем момент (доступно любому пользователю)
     const st = url.pathname.match(/^\/api\/tasks\/([\w-]+)\/start$/);
+    if (req.method === 'POST' && st && st[1].startsWith('tg-')) return send(res, 200, { ok: true });
     if (req.method === 'POST' && st) {
-      const task = await findTask(uid, st[1]);
+      const task = load().find(t => t.id === st[1]);
       if (!task) return send(res, 404, { error: 'Задание не найдено' });
-      await q(`UPDATE users SET started = started || jsonb_build_object($2::text, $3::bigint)
-        WHERE id = $1 AND NOT (started ? $2::text)`, [uid, task.id, Date.now()]);
+      const users = loadUsers();
+      const me = users[uid] || (users[uid] = { stars: 0, done: [] });
+      me.started = me.started || {};
+      if (!me.started[task.id]) me.started[task.id] = Date.now();
+      saveUsers(users);
       return send(res, 200, { ok: true });
     }
 
-    // Проверка выполнения задания
+    // Проверка выполнения задания (доступно любому пользователю)
     const chk = url.pathname.match(/^\/api\/tasks\/([\w-]+)\/check$/);
+    if (req.method === 'POST' && chk && chk[1].startsWith('tg-')) {
+      const notDone = { ok: false, notDone: true, error: 'Вы не выполнили задание' };
+      const before = loadUsers()[uid];
+      if (!before || !(before.tgPending || []).length) return send(res, 200, notDone);
+      const d = await tgrassFetch(user);
+      if (!d) return send(res, 200, { ok: false, error: 'Не удалось проверить задание. Попробуйте позже.' });
+      if (d.status !== 'ok') return send(res, 200, notDone);
+      // Tgrass подтвердил выполнение всех офферов. Награда — за те, что мы показывали (повторно не выдаётся).
+      const fresh = loadUsers();
+      const cur = fresh[uid] || (fresh[uid] = { stars: 0, done: [] });
+      const pending = cur.tgPending || [];
+      if (!pending.length) return send(res, 200, { ok: true, already: true, stars: cur.stars });
+      const reward = Math.round(pending.length * TGRASS_REWARD * 100) / 100;
+      cur.tgDone = (cur.tgDone || []).concat(pending).slice(-1000);
+      cur.tgPending = [];
+      cur.stars = Math.round((cur.stars + reward) * 100) / 100;
+      saveUsers(fresh);
+      return send(res, 200, { ok: true, reward, stars: cur.stars });
+    }
     if (req.method === 'POST' && chk) {
-      const task = await findTask(uid, chk[1]);
+      const task = load().find(t => t.id === chk[1]);
       if (!task) return send(res, 404, { error: 'Задание не найдено' });
-      const me = (await q(`SELECT stars::float8 AS stars, done, started FROM users WHERE id = $1`, [uid])).rows[0];
-      if (me.done.includes(task.id)) return send(res, 200, { ok: true, already: true, stars: Number(me.stars) });
-      // Для обычных заданий нужен «Начать» и пауза. Задания BotoHub и Flyer проверяет сам сервис
-      if (!task.bh && !task.fl) {
-        const startedAt = Number((me.started || {})[task.id]);
-        if (!startedAt || Date.now() - startedAt < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
-      }
-      if (task.bh) {
-        const r = await botohubSync(user, uid, false);
-        if (r.failed) return send(res, 200, { ok: false, error: 'Не удалось проверить задание BotoHub. Попробуйте позже.' });
-        if (!r.awarded) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
-        const s = Number((await q(`SELECT stars::float8 AS stars FROM users WHERE id = $1`, [uid])).rows[0].stars);
-        return send(res, 200, { ok: true, reward: BOTOHUB_REWARD, stars: s });
-      }
-      if (task.fl) {
-        // Задание Flyer выполнено, когда сервис возвращает статус FLYER_DONE_STATUS
-        if (!FLYER_KEY || !FLYER_CHECK_URL) return send(res, 200, { ok: false, error: 'Проверка заданий Flyer не настроена.' });
-        const d = await flyerPost(FLYER_CHECK_URL, { key: FLYER_KEY, signature: task.signature });
-        if (!d || d.error || typeof d.result !== 'string') {
-          console.log('[flyer] check:', JSON.stringify(d).slice(0, 300));
-          return send(res, 200, { ok: false, error: 'Не удалось проверить задание. Попробуйте позже.' });
-        }
-        console.log('[flyer] check', task.signature, '->', d.result);
-        if (d.result.toLowerCase() !== FLYER_DONE_STATUS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
-      } else if (STRICT_CHECK) {
+      const users = loadUsers();
+      const me = users[uid] || (users[uid] = { stars: 0, done: [] });
+      if (me.done.includes(task.id)) return send(res, 200, { ok: true, already: true, stars: me.stars });
+      const startedAt = (me.started || {})[task.id];
+      if (!startedAt || Date.now() - startedAt < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
+      if (STRICT_CHECK) {
         const result = await checkSubscription(task.url, user.id);
         if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, error: result.error });
       }
-      // Атомарное начисление: если задание уже засчитано параллельным запросом, ничего не начислится дважды
-      const claimed = await q(`UPDATE users SET stars = ROUND(stars + $2::numeric, 2), done = array_append(done, $3::text)
-        WHERE id = $1 AND NOT ($3::text = ANY(done)) RETURNING stars::float8 AS stars`, [uid, task.reward, task.id]);
-      if (claimed.rowCount) {
-        await q(`INSERT INTO star_log (user_id, delta, reason, ref) VALUES ($1, $2, 'task', $3)`, [uid, task.reward, task.id]);
+      // Повторная проверка после await: на случай двух одновременных запросов
+      const fresh = loadUsers();
+      const cur = fresh[uid] || (fresh[uid] = { stars: 0, done: [] });
+      if (!cur.done.includes(task.id)) {
+        cur.done.push(task.id);
+        cur.stars = Math.round((cur.stars + task.reward) * 100) / 100;
+        saveUsers(fresh);
       }
-      const stars = claimed.rowCount
-        ? Number(claimed.rows[0].stars)
-        : Number((await q(`SELECT stars::float8 AS stars FROM users WHERE id = $1`, [uid])).rows[0].stars);
-      return send(res, 200, { ok: true, reward: task.reward, stars });
+      return send(res, 200, { ok: true, reward: task.reward, stars: cur.stars });
     }
 
-    // Дальше только для администратора
+    // Дальше только для администратора. Проверка делается здесь, на сервере.
     if (!isAdmin) return send(res, 403, { error: 'Нет доступа' });
 
     if (req.method === 'POST' && url.pathname === '/api/admin/tasks') {
@@ -469,29 +281,20 @@ async function handle(req, res) {
       if (!/^https:\/\//.test(link) || link.length > 500) return send(res, 400, { error: 'Некорректная ссылка' });
       if (!(reward > 0 && reward <= 100000)) return send(res, 400, { error: 'Некорректная награда' });
       if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(icon) || icon.length > 200000) return send(res, 400, { error: 'Некорректная иконка' });
-      await q(`INSERT INTO tasks (id,title,url,reward,icon) VALUES ($1,$2,$3,$4,$5)`,
-        [crypto.randomUUID(), title, link, reward, icon]);
+      const tasks = load();
+      tasks.push({ id: crypto.randomUUID(), title, url: link, reward, icon });
+      save(tasks);
       return send(res, 200, { ok: true });
     }
 
     const del = url.pathname.match(/^\/api\/admin\/tasks\/([\w-]+)$/);
     if (req.method === 'DELETE' && del) {
-      await q(`DELETE FROM tasks WHERE id = $1`, [del[1]]);
+      save(load().filter(t => t.id !== del[1]));
       return send(res, 200, { ok: true });
     }
     send(res, 404, { error: 'Не найдено' });
   } catch (e) {
-    console.log('[error]', e.message);
     send(res, 400, { error: 'Некорректный запрос' });
   }
-}
+}).listen(PORT, '0.0.0.0', () => console.log('Server started on port ' + PORT));
 
-(async () => {
-  await initDb();
-  await migrateOnce();
-  await seedOnce();
-  http.createServer(handle).listen(PORT, '0.0.0.0', () => console.log('Server started on port ' + PORT));
-})().catch(e => {
-  console.error('Не удалось подготовить базу:', e.message);
-  process.exit(1);
-});
