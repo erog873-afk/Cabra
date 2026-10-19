@@ -21,6 +21,15 @@ const BOTOHUB_API_URL = 'https://botohub.me/get-tasks';
 const BOTOHUB_TOKEN = process.env.BOTOHUB_TOKEN || '';
 const BOTOHUB_REWARD = Math.round((Number(process.env.BOTOHUB_REWARD) || 0.5) * 100) / 100;
 
+// Flyer-подобный сервис заданий: ключ, адреса и награда только из переменных окружения Render
+const FLYER_KEY = process.env.FLYER_KEY || '';
+const FLYER_GET_URL = process.env.FLYER_GET_URL || 'https://api.flyerservice.io/get_tasks';     // адрес «получение списка заданий»
+const FLYER_CHECK_URL = process.env.FLYER_CHECK_URL || 'https://api.flyerservice.io/check_task'; // адрес «проверка статуса задания»
+const FLYER_DONE_STATUS = (process.env.FLYER_DONE_STATUS || 'completed').toLowerCase(); // статус «выполнено»
+const FLYER_WEBHOOK_SECRET = process.env.FLYER_WEBHOOK_SECRET || ''; // необязательно: секрет в адресе вебхука
+const FLYER_LIMIT = Math.min(10, Math.max(1, Number(process.env.FLYER_LIMIT) || 5));
+const FLYER_REWARD = Math.round((Number(process.env.FLYER_REWARD) || 0.5) * 100) / 100;
+
 if (!BOT_TOKEN || !ADMIN_ID || !DATABASE_URL) {
   console.error('Задайте BOT_TOKEN, ADMIN_ID и DATABASE_URL');
   process.exit(1);
@@ -68,6 +77,15 @@ async function initDb() {
     fake BOOLEAN NOT NULL DEFAULT false)`);
   // TGrass удалён: убираем старую таблицу с сохранёнными заданиями
   await q(`DROP TABLE IF EXISTS tgrass_offers`);
+  // Задания Flyer, показанные пользователю (signature нужен для проверки статуса)
+  await q(`CREATE TABLE IF NOT EXISTS flyer_offers (
+    user_id TEXT NOT NULL,
+    offer_key TEXT NOT NULL,
+    signature TEXT NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, offer_key))`);
 }
 
 // Иконка по умолчанию берётся из index.html (как у тестового задания)
@@ -195,9 +213,60 @@ async function getBotohubTask(uid, id) {
   return { id, title: 'Задание BotoHub', url: r.link, reward: BOTOHUB_REWARD, icon: DEFAULT_ICON, bh: true };
 }
 
+// Запрос к Flyer. Возвращает JSON-ответ или null при ошибке.
+async function flyerPost(url, payload) {
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) { console.log('[flyer] HTTP', r.status, url); return null; }
+    return await r.json();
+  } catch (e) {
+    console.log('[flyer] ошибка запроса:', e.message);
+    return null;
+  }
+}
+
+// Получаем задания Flyer и сохраняем их для пользователя
+async function syncFlyer(user) {
+  if (!FLYER_KEY || !FLYER_GET_URL) return;
+  const d = await flyerPost(FLYER_GET_URL, {
+    key: FLYER_KEY,
+    user_id: Number(user.id),
+    language_code: user.language_code || 'ru',
+    limit: FLYER_LIMIT,
+  });
+  if (!d || !Array.isArray(d.result)) {
+    if (d) console.log('[flyer] ответ без result:', JSON.stringify(d).slice(0, 300));
+    return;
+  }
+  console.log('[flyer] user', user.id, 'tasks:', d.result.length, 'raw:', JSON.stringify(d.result).slice(0, 800));
+  for (const t of d.result) {
+    if (!t || !t.signature || t.is_ios_ban) continue;
+    const link = Array.isArray(t.links) ? t.links.find(l => /^https:\/\//.test(String(l))) : null;
+    if (!link) continue;
+    const title = String(t.name || (t.task === 'subscribe channel' ? 'Подписка на канал' : 'Задание')).slice(0, 80);
+    await q(`INSERT INTO flyer_offers (user_id, offer_key, signature, title, url) VALUES ($1,$2,$3,$4,$5)
+      ON CONFLICT (user_id, offer_key) DO NOTHING`,
+      [String(user.id), offerKey(t.signature), String(t.signature), title, String(link)]);
+  }
+}
+
+// Задание Flyer, сохранённое для пользователя
+async function getFlyerTask(uid, id) {
+  const r = await q(`SELECT offer_key, signature, title, url FROM flyer_offers WHERE user_id = $1 AND offer_key = $2`, [uid, id.slice(3)]);
+  if (!r.rowCount) return null;
+  const o = r.rows[0];
+  return { id, title: o.title, url: o.url, reward: FLYER_REWARD, icon: DEFAULT_ICON, fl: true, signature: o.signature };
+}
+
 // Задание по id: обычное из таблицы tasks или задание BotoHub
 async function findTask(uid, id) {
   if (id.startsWith('bh-')) return getBotohubTask(uid, id);
+  if (id.startsWith('fl-')) return getFlyerTask(uid, id);
   return getTask(id);
 }
 
@@ -263,6 +332,14 @@ const body = req => new Promise((ok, no) => {
 async function handle(req, res) {
   const url = new URL(req.url, 'http://x');
   try {
+    // Вебхук Flyer: уведомление об отписке (status: abort). Только записываем в лог, баланс не трогаем.
+    if (req.method === 'POST' && (url.pathname === '/webhook/flyer' || url.pathname.startsWith('/webhook/flyer/'))) {
+      if (FLYER_WEBHOOK_SECRET && url.pathname !== '/webhook/flyer/' + FLYER_WEBHOOK_SECRET) return send(res, 404, { error: 'Не найдено' });
+      const d = await body(req).catch(() => ({}));
+      console.log('[flyer webhook]', JSON.stringify(d).slice(0, 500));
+      return send(res, 200, { ok: true });
+    }
+
     // Статика: index.html и файлы рядом с ним. Служебные файлы отдавать нельзя.
     if (!url.pathname.startsWith('/api/')) {
       if (req.method !== 'GET') return send(res, 404, { error: 'Не найдено' });
@@ -304,6 +381,7 @@ async function handle(req, res) {
 
     // Список заданий + баланс и отметки «выполнено»
     if (req.method === 'GET' && url.pathname === '/api/tasks') {
+      await syncFlyer(user);
       // Получаем текущую ссылку BotoHub, если её ещё нет (или предыдущая уже выполнена)
       if (BOTOHUB_TOKEN) {
         const cur = (await q(`SELECT link, fake FROM botohub_state WHERE user_id = $1`, [uid])).rows[0];
@@ -315,7 +393,11 @@ async function handle(req, res) {
         : [];
       const tasks = (await q(`SELECT id, title, url, reward::float8 AS reward, icon FROM tasks ORDER BY created_at, id`)).rows;
       const me = (await q(`SELECT stars::float8 AS stars, done FROM users WHERE id = $1`, [uid])).rows[0] || { stars: 0, done: [] };
-      const all = [...tasks, ...bh];
+      // Выполненные задания Flyer из списка убираем
+      const fl = (await q(`SELECT offer_key, title, url FROM flyer_offers WHERE user_id = $1 ORDER BY created_at, offer_key`, [uid])).rows
+        .filter(o => !me.done.includes('fl-' + o.offer_key))
+        .map(o => ({ id: 'fl-' + o.offer_key, title: o.title, url: o.url, reward: FLYER_REWARD, icon: DEFAULT_ICON }));
+      const all = [...tasks, ...fl, ...bh];
       return send(res, 200, { tasks: all.map(t => ({ ...t, done: me.done.includes(t.id) })), isAdmin, stars: Number(me.stars) });
     }
 
@@ -336,8 +418,8 @@ async function handle(req, res) {
       if (!task) return send(res, 404, { error: 'Задание не найдено' });
       const me = (await q(`SELECT stars::float8 AS stars, done, started FROM users WHERE id = $1`, [uid])).rows[0];
       if (me.done.includes(task.id)) return send(res, 200, { ok: true, already: true, stars: Number(me.stars) });
-      // Для обычных заданий нужен «Начать» и пауза. Задания BotoHub проверяет сам сервис
-      if (!task.bh) {
+      // Для обычных заданий нужен «Начать» и пауза. Задания BotoHub и Flyer проверяет сам сервис
+      if (!task.bh && !task.fl) {
         const startedAt = Number((me.started || {})[task.id]);
         if (!startedAt || Date.now() - startedAt < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
       }
@@ -348,7 +430,17 @@ async function handle(req, res) {
         const s = Number((await q(`SELECT stars::float8 AS stars FROM users WHERE id = $1`, [uid])).rows[0].stars);
         return send(res, 200, { ok: true, reward: BOTOHUB_REWARD, stars: s });
       }
-      if (STRICT_CHECK) {
+      if (task.fl) {
+        // Задание Flyer выполнено, когда сервис возвращает статус FLYER_DONE_STATUS
+        if (!FLYER_KEY || !FLYER_CHECK_URL) return send(res, 200, { ok: false, error: 'Проверка заданий Flyer не настроена.' });
+        const d = await flyerPost(FLYER_CHECK_URL, { key: FLYER_KEY, signature: task.signature });
+        if (!d || d.error || typeof d.result !== 'string') {
+          console.log('[flyer] check:', JSON.stringify(d).slice(0, 300));
+          return send(res, 200, { ok: false, error: 'Не удалось проверить задание. Попробуйте позже.' });
+        }
+        console.log('[flyer] check', task.signature, '->', d.result);
+        if (d.result.toLowerCase() !== FLYER_DONE_STATUS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
+      } else if (STRICT_CHECK) {
         const result = await checkSubscription(task.url, user.id);
         if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, error: result.error });
       }
