@@ -20,6 +20,10 @@ const WEEK_MS = 7 * 24 * 3600 * 1000;
 const TGRASS_API_URL = 'https://tgrass.space/offers';
 const TGRASS_API_KEY = process.env.TGRASS_API_KEY || '';
 const TGRASS_REWARD = Math.round((Number(process.env.TGRASS_REWARD) || 0.5) * 100) / 100;
+// BotoHub: токен и награда только из переменных окружения Render
+const BOTOHUB_API_URL = 'https://botohub.me/get-tasks';
+const BOTOHUB_TOKEN = process.env.BOTOHUB_TOKEN || '';
+const BOTOHUB_REWARD = Math.round((Number(process.env.BOTOHUB_REWARD) || 0.5) * 100) / 100;
 
 if (!BOT_TOKEN || !ADMIN_ID || !DATABASE_URL) {
   console.error('Задайте BOT_TOKEN, ADMIN_ID и DATABASE_URL');
@@ -61,6 +65,11 @@ async function initDb() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE TABLE IF NOT EXISTS leaders_cycle (id INT PRIMARY KEY, end_at BIGINT NOT NULL)`);
   await q(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
+  // BotoHub: текущая ссылка пользователя и флаг фейка
+  await q(`CREATE TABLE IF NOT EXISTS botohub_state (
+    user_id TEXT PRIMARY KEY,
+    link TEXT,
+    fake BOOLEAN NOT NULL DEFAULT false)`);
   // Задания TGrass, которые были показаны конкретному пользователю
   await q(`CREATE TABLE IF NOT EXISTS tgrass_offers (
     user_id TEXT NOT NULL,
@@ -176,6 +185,59 @@ async function syncTgrass(user) {
   }
 }
 
+// Запрос к BotoHub. Возвращает ответ API или null при ошибке.
+async function botohubRequest(user, skip) {
+  if (!BOTOHUB_TOKEN) return null;
+  try {
+    const r = await fetch(BOTOHUB_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Auth': BOTOHUB_TOKEN },
+      body: JSON.stringify({ chat_id: Number(user.id), is_task: true, skip: !!skip }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (r.status === 401) console.log('[botohub] 401: проверьте BOTOHUB_TOKEN');
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) {
+    console.log('[botohub] ошибка запроса:', e.message);
+    return null;
+  }
+}
+
+// Синхронизация с BotoHub. Если предыдущая ссылка выполнена, начисляем награду один раз и берём следующую.
+async function botohubSync(user, uid, skip) {
+  const d = await botohubRequest(user, skip);
+  if (!d) return { failed: true, awarded: false };
+  await q(`INSERT INTO botohub_state (user_id, fake) VALUES ($1,$2)
+    ON CONFLICT (user_id) DO UPDATE SET fake = EXCLUDED.fake`, [uid, !!d.fake]);
+  if (d.fake) {
+    await q(`UPDATE botohub_state SET link = NULL WHERE user_id = $1`, [uid]);
+    return { failed: false, awarded: false, fake: true };
+  }
+  const prev = (await q(`SELECT link FROM botohub_state WHERE user_id = $1`, [uid])).rows[0];
+  let awarded = false;
+  if (d.prev_success && prev && prev.link) {
+    const key = 'bh-' + offerKey(prev.link);
+    const claimed = await q(`UPDATE users SET stars = ROUND(stars + $2::numeric, 2), done = array_append(done, $3::text)
+      WHERE id = $1 AND NOT ($3::text = ANY(done)) RETURNING stars`, [uid, BOTOHUB_REWARD, key]);
+    if (claimed.rowCount) {
+      awarded = true;
+      await q(`INSERT INTO star_log (user_id, delta, reason, ref) VALUES ($1, $2, 'botohub', $3)`, [uid, BOTOHUB_REWARD, key]);
+    }
+  }
+  const next = (!d.completed && !d.skip && Array.isArray(d.tasks) && /^https:\/\//.test(String(d.tasks[0] || '')))
+    ? String(d.tasks[0]) : null;
+  await q(`UPDATE botohub_state SET link = $2 WHERE user_id = $1`, [uid, next]);
+  return { failed: false, awarded, next };
+}
+
+// Задание BotoHub, если у пользователя сейчас есть активная ссылка
+async function getBotohubTask(uid, id) {
+  const r = (await q(`SELECT link, fake FROM botohub_state WHERE user_id = $1`, [uid])).rows[0];
+  if (!r || r.fake || !r.link || 'bh-' + offerKey(r.link) !== id) return null;
+  return { id, title: 'Задание BotoHub', url: r.link, reward: BOTOHUB_REWARD, icon: DEFAULT_ICON, bh: true };
+}
+
 // Задание из TGrass, сохранённое для пользователя
 async function getTgrassTask(uid, id) {
   const key = id.slice(3);
@@ -188,6 +250,7 @@ async function getTgrassTask(uid, id) {
 // Задание по id: обычное из таблицы tasks или задание TGrass
 async function findTask(uid, id) {
   if (id.startsWith('tg-')) return getTgrassTask(uid, id);
+  if (id.startsWith('bh-')) return getBotohubTask(uid, id);
   return getTask(id);
 }
 
@@ -295,11 +358,22 @@ async function handle(req, res) {
     // Список заданий + баланс и отметки «выполнено»
     if (req.method === 'GET' && url.pathname === '/api/tasks') {
       await syncTgrass(user);
+      // Получаем текущую ссылку BotoHub, если её ещё нет (или предыдущая уже выполнена)
+      if (BOTOHUB_TOKEN) {
+        const cur = (await q(`SELECT link, fake FROM botohub_state WHERE user_id = $1`, [uid])).rows[0];
+        if (!cur || (!cur.fake && !cur.link)) await botohubSync(user, uid, false);
+      }
+      const bhRow = (await q(`SELECT link, fake FROM botohub_state WHERE user_id = $1`, [uid])).rows[0];
+      const bh = (bhRow && !bhRow.fake && bhRow.link)
+        ? [{ id: 'bh-' + offerKey(bhRow.link), title: 'Задание BotoHub', url: bhRow.link, reward: BOTOHUB_REWARD, icon: DEFAULT_ICON }]
+        : [];
       const tasks = (await q(`SELECT id, title, url, reward::float8 AS reward, icon FROM tasks ORDER BY created_at, id`)).rows;
-      const tg = (await q(`SELECT offer_key, title, url FROM tgrass_offers WHERE user_id = $1 ORDER BY created_at, offer_key`, [uid])).rows
-        .map(o => ({ id: 'tg-' + o.offer_key, title: o.title, url: o.url, reward: TGRASS_REWARD, icon: DEFAULT_ICON }));
       const me = (await q(`SELECT stars::float8 AS stars, done FROM users WHERE id = $1`, [uid])).rows[0] || { stars: 0, done: [] };
-      const all = [...tasks, ...tg];
+      // Выполненные задания TGrass из списка убираем; задания из админ-панели остаются с отметкой
+      const tg = (await q(`SELECT offer_key, title, url FROM tgrass_offers WHERE user_id = $1 ORDER BY created_at, offer_key`, [uid])).rows
+        .filter(o => !me.done.includes('tg-' + o.offer_key))
+        .map(o => ({ id: 'tg-' + o.offer_key, title: o.title, url: o.url, reward: TGRASS_REWARD, icon: DEFAULT_ICON }));
+      const all = [...tasks, ...tg, ...bh];
       return send(res, 200, { tasks: all.map(t => ({ ...t, done: me.done.includes(t.id) })), isAdmin, stars: Number(me.stars) });
     }
 
@@ -322,6 +396,13 @@ async function handle(req, res) {
       if (me.done.includes(task.id)) return send(res, 200, { ok: true, already: true, stars: Number(me.stars) });
       const startedAt = Number((me.started || {})[task.id]);
       if (!startedAt || Date.now() - startedAt < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
+      if (task.bh) {
+        const r = await botohubSync(user, uid, false);
+        if (r.failed) return send(res, 200, { ok: false, error: 'Не удалось проверить задание BotoHub. Попробуйте позже.' });
+        if (!r.awarded) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
+        const s = Number((await q(`SELECT stars::float8 AS stars FROM users WHERE id = $1`, [uid])).rows[0].stars);
+        return send(res, 200, { ok: true, reward: BOTOHUB_REWARD, stars: s });
+      }
       if (task.tg) {
         // Задание TGrass считается выполненным, когда TGrass отвечает status: ok
         const d = await tgrassRequest(user);
