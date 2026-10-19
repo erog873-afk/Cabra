@@ -398,8 +398,11 @@ async function handle(req, res) {
       if (!task) return send(res, 404, { error: 'Задание не найдено' });
       const me = (await q(`SELECT stars::float8 AS stars, done, started FROM users WHERE id = $1`, [uid])).rows[0];
       if (me.done.includes(task.id)) return send(res, 200, { ok: true, already: true, stars: Number(me.stars) });
-      const startedAt = Number((me.started || {})[task.id]);
-      if (!startedAt || Date.now() - startedAt < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
+      // Для обычных заданий нужен «Начать» и пауза. Задания TGrass и BotoHub решает сам сервис: он и проверяет выполнение
+      if (!task.tg && !task.bh) {
+        const startedAt = Number((me.started || {})[task.id]);
+        if (!startedAt || Date.now() - startedAt < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
+      }
       if (task.bh) {
         const r = await botohubSync(user, uid, false);
         if (r.failed) return send(res, 200, { ok: false, error: 'Не удалось проверить задание BotoHub. Попробуйте позже.' });
