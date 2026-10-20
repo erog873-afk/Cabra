@@ -1,52 +1,106 @@
-// Запуск: BOT_TOKEN=... ADMIN_ID=123456789 node server.js   (нужен Node 18+, зависимостей нет)
-// ADMIN_ID — ваш Telegram ID (число). Только он может добавлять и удалять задания.
+// Запуск: BOT_TOKEN=... ADMIN_ID=... DATABASE_URL=postgres://... node server.js   (Node 18+, зависимость: pg)
+// ADMIN_ID — ваш Telegram ID. Только он может добавлять и удалять задания.
 // Проверка заданий: бот должен быть АДМИНИСТРАТОРОМ канала/группы, на которую подписываются.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { Pool, types } = require('pg');
+types.setTypeParser(1700, v => Number(v)); // NUMERIC -> число
 
-// ТЕСТ: значения по умолчанию. Перед настоящим запуском удалите их и задайте переменные в Render.
 const BOT_TOKEN = process.env.BOT_TOKEN || '8758871773:AAFoZe3Mc2tX8e_JwXdE1xgCJ6Oh3pRzB0s';
 const ADMIN_ID = process.env.ADMIN_ID || '8642237301';
+const DATABASE_URL = process.env.DATABASE_URL;
 const PORT = process.env.PORT || 3000;
-// Как засчитывается задание: человек нажимает «Начать» (переходит по ссылке), возвращается и жмёт «Проверить задание» —
-// награда зачисляется сразу. STRICT_CHECK=1 в Render включает настоящую проверку подписки через Telegram
-// (тогда бот должен быть администратором канала).
-const STRICT_CHECK = process.env.STRICT_CHECK !== '0'; // проверка подписки включена всегда; отключить можно только STRICT_CHECK=0
-const MIN_WAIT_MS = 3000; // минимум секунд между «Начать» и «Проверить задание»
-if (!BOT_TOKEN || !ADMIN_ID) { console.error('Задайте BOT_TOKEN и ADMIN_ID'); process.exit(1); }
+const STRICT_CHECK = process.env.STRICT_CHECK !== '0'; // проверка подписки включена; отключить: STRICT_CHECK=0
+const MIN_WAIT_MS = 3000; // минимум между «Начать» и «Проверить задание»
+if (!BOT_TOKEN || !ADMIN_ID || !DATABASE_URL) { console.error('Задайте BOT_TOKEN, ADMIN_ID и DATABASE_URL'); process.exit(1); }
 
-const DB = path.join(__dirname, 'tasks.json');
-const USERS = path.join(__dirname, 'users.json'); // { "<telegram id>": { stars: 0, done: ["<task id>"] } }
-const readJson = (f, def) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return def; } };
-const load = () => readJson(DB, []);
-const save = t => fs.writeFileSync(DB, JSON.stringify(t, null, 2));
-const loadUsers = () => readJson(USERS, {});
-const saveUsers = u => fs.writeFileSync(USERS, JSON.stringify(u, null, 2));
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: process.env.PGSSL === '0' ? false : { rejectUnauthorized: false },
+  max: 10
+});
+pool.on('error', e => console.log('[db] pool error:', e.message));
 
-// Таймер лидеров: 7 дней. Конец цикла хранится в файле; когда он наступает, начинается новый цикл на 7 дней.
-const CYCLE = path.join(__dirname, 'leaders-cycle.json');
 const WEEK_MS = 7 * 24 * 3600 * 1000;
-function cycleEnd() {
-  let end = 0;
-  try { end = Number(JSON.parse(fs.readFileSync(CYCLE, 'utf8')).end) || 0; } catch {}
+const round2 = n => Math.round(n * 100) / 100;
+const q = (text, params) => pool.query(text, params);
+
+// Транзакция: fn получает клиента, при ошибке всё откатывается
+async function tx(fn) {
+  const c = await pool.connect();
+  try { await c.query('BEGIN'); const r = await fn(c); await c.query('COMMIT'); return r; }
+  catch (e) { try { await c.query('ROLLBACK'); } catch {} throw e; }
+  finally { c.release(); }
+}
+
+// Начислить звёзды + запись в журнал (внутри транзакции). Возвращает новый баланс.
+async function addStars(c, uid, delta, reason, ref) {
+  const r = await c.query('UPDATE users SET stars = ROUND(stars + $2, 2), updated_at = now() WHERE id = $1 RETURNING stars', [uid, delta]);
+  await c.query('INSERT INTO stars_log (user_id, delta, reason, ref) VALUES ($1, $2, $3, $4)', [uid, delta, reason, ref || null]);
+  return r.rows[0].stars;
+}
+
+// Таймер лидеров: 7 дней. Когда цикл заканчивается, начинается новый.
+async function cycleEnd() {
   const now = Date.now();
+  const r = await q("SELECT value FROM meta WHERE key = 'leaders_end'");
+  let end = r.rows[0] ? Number(r.rows[0].value) : 0;
   if (!end || end <= now) {
     end = now + WEEK_MS;
-    try { fs.writeFileSync(CYCLE, JSON.stringify({ end })); } catch {}
+    await q("INSERT INTO meta (key, value) VALUES ('leaders_end', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [String(end)]);
   }
   return end;
 }
 
-// ТЕСТ: если файла с заданиями ещё нет, создаём одно тестовое. Удалите его кнопкой «Удалить» в админ-панели.
-// После удаления оно не вернётся (файл уже существует). Ссылку можно задать переменной TEST_CHANNEL в Render.
-if (!fs.existsSync(DB)) {
-  let icon = '';
-  for (const f of ['index.html', 'tasks.html']) {
-    try { icon = fs.readFileSync(path.join(__dirname, f), 'utf8').match(/DEFAULT_ICON\s*=\s*"(data:image\/png;base64,[A-Za-z0-9+\/=]+)"/)[1]; break; } catch {}
+// Создание таблиц + разовый перенос старых tasks.json / users.json / leaders-cycle.json (если они лежат рядом)
+async function initDb() {
+  await q(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
+  const readJson = (f, def) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, f), 'utf8')); } catch { return def; } };
+
+  const migrated = await q("SELECT 1 FROM meta WHERE key = 'migrated'");
+  if (!migrated.rowCount) {
+    await tx(async c => {
+      const tasks = readJson('tasks.json', []);
+      for (const t of Array.isArray(tasks) ? tasks : []) {
+        await c.query('INSERT INTO tasks (id, title, url, reward, icon) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO NOTHING',
+          [String(t.id), String(t.title || ''), String(t.url || ''), Number(t.reward) || 1, String(t.icon || '')]);
+      }
+      const ids = new Set((await c.query('SELECT id FROM tasks')).rows.map(r => r.id));
+      const users = readJson('users.json', {});
+      for (const [id, u] of Object.entries(users)) {
+        if (!/^\d+$/.test(id) || !u) continue;
+        await c.query('INSERT INTO users (id, name, photo, stars) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING',
+          [id, String(u.name || ''), String(u.photo || ''), Number(u.stars) || 0]);
+        for (const tid of u.done || []) if (ids.has(tid))
+          await c.query('INSERT INTO user_tasks (user_id, task_id, done_at) VALUES ($1,$2,now()) ON CONFLICT DO NOTHING', [id, tid]);
+        for (const [tid, ts] of Object.entries(u.started || {})) if (ids.has(tid))
+          await c.query('INSERT INTO user_tasks (user_id, task_id, started_at) VALUES ($1,$2,to_timestamp($3/1000.0)) ON CONFLICT DO NOTHING', [id, tid, Number(ts) || Date.now()]);
+        for (const oid of u.tgDone || [])
+          await c.query("INSERT INTO tgrass_offers (user_id, offer_id, status, done_at) VALUES ($1,$2,'done',now()) ON CONFLICT DO NOTHING", [id, oid]);
+        for (const oid of u.tgPending || [])
+          await c.query("INSERT INTO tgrass_offers (user_id, offer_id) VALUES ($1,$2) ON CONFLICT DO NOTHING", [id, oid]);
+        if (Number(u.stars) > 0)
+          await c.query("INSERT INTO stars_log (user_id, delta, reason, ref) VALUES ($1,$2,'import','users.json')", [id, Number(u.stars)]);
+      }
+      const cyc = readJson('leaders-cycle.json', null);
+      if (cyc && Number(cyc.end) > Date.now())
+        await c.query("INSERT INTO meta (key, value) VALUES ('leaders_end', $1) ON CONFLICT (key) DO NOTHING", [String(Number(cyc.end))]);
+
+      // Если заданий нет совсем — одно тестовое (удалите его в админ-панели)
+      if (!(await c.query('SELECT 1 FROM tasks LIMIT 1')).rowCount) {
+        let icon = '';
+        for (const f of ['index.html', 'tasks.html']) {
+          try { icon = fs.readFileSync(path.join(__dirname, f), 'utf8').match(/DEFAULT_ICON\s*=\s*"(data:image\/png;base64,[A-Za-z0-9+\/=]+)"/)[1]; break; } catch {}
+        }
+        await c.query('INSERT INTO tasks (id, title, url, reward, icon) VALUES ($1,$2,$3,$4,$5)',
+          ['test-task', 'Тестовое задание', process.env.TEST_CHANNEL || 'https://t.me/your_channel', 1, icon]);
+      }
+      await c.query("INSERT INTO meta (key, value) VALUES ('migrated', '1') ON CONFLICT DO NOTHING");
+    });
+    console.log('[db] инициализация/перенос данных выполнены');
   }
-  save([{ id: 'test-task', title: 'Тестовое задание', url: process.env.TEST_CHANNEL || 'https://t.me/your_channel', reward: 1, icon }]);
 }
 
 // Проверка подписи initData по документации Telegram. Возвращает пользователя или null.
@@ -90,12 +144,13 @@ async function checkSubscription(link, userId) {
 }
 
 // ---------- Tgrass ----------
-// Ключ задайте переменной TGRASS_API_KEY в Render. Награда за каждое задание — TGRASS_REWARD (по умолчанию 1).
+// Ключ задайте переменной TGRASS_API_KEY. Награда за каждое задание — TGRASS_REWARD (по умолчанию 1).
 const TGRASS_API_URL = 'https://tgrass.space/offers';
 const TGRASS_API_KEY = process.env.TGRASS_API_KEY || '';
 const TGRASS_REWARD = Number(process.env.TGRASS_REWARD) || 1;
 const tgId = link => 'tg-' + crypto.createHash('sha1').update(String(link)).digest('hex').slice(0, 12);
 
+// Запрос к Tgrass. Возвращает JSON ответа или null (ошибка/нет ключа).
 // Запрос к Tgrass. Возвращает JSON ответа или null (ошибка/нет ключа).
 async function tgrassFetch(user) {
   if (!TGRASS_API_KEY) return null;
@@ -116,13 +171,11 @@ async function tgrassFetch(user) {
   } catch (e) { console.log('[tgrass] error:', e.message); return null; }
 }
 
-// Задания Tgrass для списка. Запоминаем, какие офферы показали (tgPending): награда выдаётся только за них.
+// Задания Tgrass для списка. Запоминаем, какие офферы показали (pending): награда выдаётся только за них.
 async function tgrassTasks(user, uid) {
   const d = await tgrassFetch(user);
   if (!d) return [];
-  const users = loadUsers();
-  const me = users[uid] || (users[uid] = { stars: 0, done: [] });
-  const doneSet = new Set(me.tgDone || []);
+  const doneSet = new Set((await q("SELECT offer_id FROM tgrass_offers WHERE user_id = $1 AND status = 'done'", [uid])).rows.map(r => r.offer_id));
   const ru = (user.language_code || 'ru') !== 'en';
   const names = ru
     ? { channel: 'Подписаться на канал', bot: 'Запустить бота', other: 'Выполнить задание' }
@@ -139,7 +192,10 @@ async function tgrassTasks(user, uid) {
       .filter(t => !doneSet.has(t.id));
   }
   const ids = list.map(t => t.id);
-  if (JSON.stringify(me.tgPending || []) !== JSON.stringify(ids)) { me.tgPending = ids; saveUsers(users); }
+  await tx(async c => {
+    await c.query("DELETE FROM tgrass_offers WHERE user_id = $1 AND status = 'pending' AND offer_id <> ALL($2::text[])", [uid, ids]);
+    for (const id of ids) await c.query("INSERT INTO tgrass_offers (user_id, offer_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [uid, id]);
+  });
   return list;
 }
 
@@ -156,7 +212,8 @@ const body = req => new Promise((ok, no) => {
   req.on('end', () => { try { ok(JSON.parse(b || '{}')); } catch (e) { no(e); } });
 });
 
-http.createServer(async (req, res) => {
+
+const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
     // Статика: index.html и подключаемые к нему файлы (cases-store.js, balance-widget.js, roulette.html, картинки...).
@@ -174,98 +231,84 @@ http.createServer(async (req, res) => {
     }
 
     const user = verify(req.headers['x-init-data']);
-    if (!user) { console.log('[auth] 401: initData ' + (req.headers['x-init-data'] ? 'не прошла проверку подписи (BOT_TOKEN не от этого бота?)' : 'отсутствует (открыто не из Telegram)')); return send(res, 401, { error: 'Откройте приложение из Telegram' }); }
+    if (!user) { console.log('[auth] 401: initData ' + (req.headers['x-init-data'] ? 'не прошла проверку подписи (BOT_TOKEN не от этого бота?)' : 'отсутствует (открыто не из Telegram?)')); return send(res, 401, { error: 'Откройте приложение из Telegram' }); }
     const isAdmin = String(user.id) === String(ADMIN_ID);
     if (url.pathname.startsWith('/api/admin/') && !isAdmin) console.log('[auth] 403: id ' + user.id + ' не равен ADMIN_ID');
     const uid = String(user.id);
 
-    // Запоминаем имя и фото для таблицы лидеров (пишем на диск, только если что-то изменилось)
+    // Создаём пользователя при первом заходе и обновляем имя/фото для таблицы лидеров
     {
-      const all = loadUsers();
-      const rec = all[uid];
       const nm = [user.first_name, user.last_name].filter(Boolean).join(' ').slice(0, 40) || user.username || ('ID ' + uid.slice(-4));
       const ph = typeof user.photo_url === 'string' && /^https:\/\//.test(user.photo_url) ? user.photo_url : '';
-      if (rec && (rec.name !== nm || rec.photo !== ph)) { rec.name = nm; rec.photo = ph; saveUsers(all); }
+      await q(`INSERT INTO users (id, name, photo) VALUES ($1, $2, $3)
+               ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, photo = EXCLUDED.photo, updated_at = now()
+               WHERE users.name IS DISTINCT FROM EXCLUDED.name OR users.photo IS DISTINCT FROM EXCLUDED.photo`, [uid, nm, ph]);
     }
 
-    // Таблица лидеров: топ-50 по балансу (звёздам) + место текущего пользователя (чужие ID не отдаём)
+    // Таблица лидеров: топ-50 по звёздам + место текущего пользователя (чужие ID не отдаём)
     if (req.method === 'GET' && url.pathname === '/api/leaders') {
-      const all = loadUsers();
-      const list = Object.entries(all)
-        .filter(([, u]) => u && Number(u.stars) > 0)
-        .map(([id, u]) => ({ id, name: u.name || ('ID ' + id.slice(-4)), photo: u.photo || '', stars: Number(u.stars) }))
-        .sort((a, b) => b.stars - a.stars);
-      const myIdx = list.findIndex(x => x.id === uid);
-      const top = list.slice(0, 50).map((x, i) => ({ rank: i + 1, name: x.name, photo: x.photo, stars: x.stars, me: x.id === uid }));
-      const meStars = Number((all[uid] || {}).stars) || 0;
-      const mine = all[uid] || {};
-      return send(res, 200, { top, me: { rank: myIdx >= 0 ? myIdx + 1 : null, stars: meStars, photo: mine.photo || '', name: mine.name || '' }, total: list.length, endsAt: cycleEnd() });
+      const top = (await q('SELECT id::text AS id, name, photo, stars FROM users WHERE stars > 0 ORDER BY stars DESC, created_at ASC LIMIT 50')).rows
+        .map((x, i) => ({ rank: i + 1, name: x.name || ('ID ' + x.id.slice(-4)), photo: x.photo || '', stars: x.stars, me: x.id === uid }));
+      const mine = (await q('SELECT name, photo, stars FROM users WHERE id = $1', [uid])).rows[0] || { name: '', photo: '', stars: 0 };
+      const total = (await q('SELECT count(*)::int AS n FROM users WHERE stars > 0')).rows[0].n;
+      const rank = mine.stars > 0 ? (await q('SELECT count(*)::int + 1 AS r FROM users WHERE stars > $1', [mine.stars])).rows[0].r : null;
+      return send(res, 200, { top, me: { rank, stars: mine.stars, photo: mine.photo || '', name: mine.name || '' }, total, endsAt: await cycleEnd() });
     }
 
     // Список заданий + баланс и отметки «выполнено» для этого пользователя
     if (req.method === 'GET' && url.pathname === '/api/tasks') {
-      const me = loadUsers()[uid] || { stars: 0, done: [] };
-      const tasks = load().map(t => ({ ...t, done: me.done.includes(t.id) }));
+      const stars = (await q('SELECT stars FROM users WHERE id = $1', [uid])).rows[0].stars;
+      const tasks = (await q(`SELECT t.id, t.title, t.url, t.reward, t.icon, (ut.done_at IS NOT NULL) AS done
+                              FROM tasks t LEFT JOIN user_tasks ut ON ut.task_id = t.id AND ut.user_id = $1
+                              ORDER BY t.pos`, [uid])).rows;
       const partner = await tgrassTasks(user, uid);
-      return send(res, 200, { tasks: tasks.concat(partner), isAdmin, stars: me.stars });
+      return send(res, 200, { tasks: tasks.concat(partner), isAdmin, stars });
     }
 
-    // Человек нажал «Начать»: запоминаем момент (доступно любому пользователю)
+    // Человек нажал «Начать»: запоминаем момент
     const st = url.pathname.match(/^\/api\/tasks\/([\w-]+)\/start$/);
     if (req.method === 'POST' && st && st[1].startsWith('tg-')) return send(res, 200, { ok: true });
     if (req.method === 'POST' && st) {
-      const task = load().find(t => t.id === st[1]);
-      if (!task) return send(res, 404, { error: 'Задание не найдено' });
-      const users = loadUsers();
-      const me = users[uid] || (users[uid] = { stars: 0, done: [] });
-      me.started = me.started || {};
-      if (!me.started[task.id]) me.started[task.id] = Date.now();
-      saveUsers(users);
+      const r = await q('INSERT INTO user_tasks (user_id, task_id) SELECT $1, id FROM tasks WHERE id = $2 ON CONFLICT DO NOTHING RETURNING 1', [uid, st[1]]);
+      if (!r.rowCount && !(await q('SELECT 1 FROM tasks WHERE id = $1', [st[1]])).rowCount) return send(res, 404, { error: 'Задание не найдено' });
       return send(res, 200, { ok: true });
     }
 
-    // Проверка выполнения задания (доступно любому пользователю)
+    // Проверка выполнения задания
     const chk = url.pathname.match(/^\/api\/tasks\/([\w-]+)\/check$/);
     if (req.method === 'POST' && chk && chk[1].startsWith('tg-')) {
       const notDone = { ok: false, notDone: true, error: 'Вы не выполнили задание' };
-      const before = loadUsers()[uid];
-      if (!before || !(before.tgPending || []).length) return send(res, 200, notDone);
+      const pend = (await q("SELECT count(*)::int AS n FROM tgrass_offers WHERE user_id = $1 AND status = 'pending'", [uid])).rows[0].n;
+      if (!pend) return send(res, 200, notDone);
       const d = await tgrassFetch(user);
       if (!d) return send(res, 200, { ok: false, error: 'Не удалось проверить задание. Попробуйте позже.' });
       if (d.status !== 'ok') return send(res, 200, notDone);
-      // Tgrass подтвердил выполнение всех офферов. Награда — за те, что мы показывали (повторно не выдаётся).
-      const fresh = loadUsers();
-      const cur = fresh[uid] || (fresh[uid] = { stars: 0, done: [] });
-      const pending = cur.tgPending || [];
-      if (!pending.length) return send(res, 200, { ok: true, already: true, stars: cur.stars });
-      const reward = Math.round(pending.length * TGRASS_REWARD * 100) / 100;
-      cur.tgDone = (cur.tgDone || []).concat(pending).slice(-1000);
-      cur.tgPending = [];
-      cur.stars = Math.round((cur.stars + reward) * 100) / 100;
-      saveUsers(fresh);
-      return send(res, 200, { ok: true, reward, stars: cur.stars });
+      // Tgrass подтвердил выполнение. Награда — за показанные офферы, повторно не выдаётся.
+      const out = await tx(async c => {
+        const r = await c.query("UPDATE tgrass_offers SET status = 'done', done_at = now() WHERE user_id = $1 AND status = 'pending' RETURNING offer_id", [uid]);
+        if (!r.rowCount) return { already: true, stars: (await c.query('SELECT stars FROM users WHERE id = $1', [uid])).rows[0].stars };
+        const reward = round2(r.rowCount * TGRASS_REWARD);
+        return { reward, stars: await addStars(c, uid, reward, 'tgrass', r.rows.map(x => x.offer_id).join(',').slice(0, 200)) };
+      });
+      return send(res, 200, { ok: true, ...out });
     }
     if (req.method === 'POST' && chk) {
-      const task = load().find(t => t.id === chk[1]);
+      const task = (await q('SELECT id, url, reward FROM tasks WHERE id = $1', [chk[1]])).rows[0];
       if (!task) return send(res, 404, { error: 'Задание не найдено' });
-      const users = loadUsers();
-      const me = users[uid] || (users[uid] = { stars: 0, done: [] });
-      if (me.done.includes(task.id)) return send(res, 200, { ok: true, already: true, stars: me.stars });
-      const startedAt = (me.started || {})[task.id];
-      if (!startedAt || Date.now() - startedAt < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
+      const ut = (await q('SELECT started_at, done_at FROM user_tasks WHERE user_id = $1 AND task_id = $2', [uid, task.id])).rows[0];
+      if (ut && ut.done_at) return send(res, 200, { ok: true, already: true, stars: (await q('SELECT stars FROM users WHERE id = $1', [uid])).rows[0].stars });
+      if (!ut || Date.now() - ut.started_at.getTime() < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
       if (STRICT_CHECK) {
         const result = await checkSubscription(task.url, user.id);
         if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, error: result.error });
       }
-      // Повторная проверка после await: на случай двух одновременных запросов
-      const fresh = loadUsers();
-      const cur = fresh[uid] || (fresh[uid] = { stars: 0, done: [] });
-      if (!cur.done.includes(task.id)) {
-        cur.done.push(task.id);
-        cur.stars = Math.round((cur.stars + task.reward) * 100) / 100;
-        saveUsers(fresh);
-      }
-      return send(res, 200, { ok: true, reward: task.reward, stars: cur.stars });
+      // Атомарно: отметка «выполнено» и начисление — только если ещё не выполнено (защита от двойных запросов)
+      const out = await tx(async c => {
+        const r = await c.query('UPDATE user_tasks SET done_at = now() WHERE user_id = $1 AND task_id = $2 AND done_at IS NULL RETURNING 1', [uid, task.id]);
+        if (!r.rowCount) return { already: true, stars: (await c.query('SELECT stars FROM users WHERE id = $1', [uid])).rows[0].stars };
+        return { reward: task.reward, stars: await addStars(c, uid, task.reward, 'task', task.id) };
+      });
+      return send(res, 200, { ok: true, ...out });
     }
 
     // Дальше только для администратора. Проверка делается здесь, на сервере.
@@ -275,26 +318,28 @@ http.createServer(async (req, res) => {
       const d = await body(req);
       const title = String(d.title || '').trim().slice(0, 80);
       const link = String(d.url || '').trim();
-      const reward = Math.round(Number(d.reward) * 100) / 100;
+      const reward = round2(Number(d.reward));
       const icon = String(d.icon || '');
       if (!title) return send(res, 400, { error: 'Введите название' });
       if (!/^https:\/\//.test(link) || link.length > 500) return send(res, 400, { error: 'Некорректная ссылка' });
       if (!(reward > 0 && reward <= 100000)) return send(res, 400, { error: 'Некорректная награда' });
       if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(icon) || icon.length > 200000) return send(res, 400, { error: 'Некорректная иконка' });
-      const tasks = load();
-      tasks.push({ id: crypto.randomUUID(), title, url: link, reward, icon });
-      save(tasks);
+      await q('INSERT INTO tasks (id, title, url, reward, icon) VALUES ($1,$2,$3,$4,$5)', [crypto.randomUUID(), title, link, reward, icon]);
       return send(res, 200, { ok: true });
     }
 
     const del = url.pathname.match(/^\/api\/admin\/tasks\/([\w-]+)$/);
     if (req.method === 'DELETE' && del) {
-      save(load().filter(t => t.id !== del[1]));
+      await q('DELETE FROM tasks WHERE id = $1', [del[1]]);
       return send(res, 200, { ok: true });
     }
     send(res, 404, { error: 'Не найдено' });
   } catch (e) {
+    console.log('[error]', e && e.message);
     send(res, 400, { error: 'Некорректный запрос' });
   }
-}).listen(PORT, '0.0.0.0', () => console.log('Server started on port ' + PORT));
+});
 
+initDb().then(() => {
+  server.listen(PORT, '0.0.0.0', () => console.log('Server started on port ' + PORT));
+}).catch(e => { console.error('[db] не удалось подключиться/создать таблицы:', e.message); process.exit(1); });
