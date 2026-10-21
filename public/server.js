@@ -1,3 +1,4 @@
+
 // Запуск: BOT_TOKEN=... ADMIN_ID=... DATABASE_URL=postgres://... node server.js   (Node 18+, зависимость: pg)
 // ADMIN_ID — ваш Telegram ID. Только он может добавлять и удалять задания.
 // Проверка заданий: бот должен быть АДМИНИСТРАТОРОМ канала/группы, на которую подписываются.
@@ -181,6 +182,21 @@ async function checkLinkni(code, userId) {
   }
 }
 
+// ---------- Приглашение: окно Telegram «Отправить сообщение» ----------
+// Кнопка «Пригласить» в профиле просит у сервера «готовое сообщение» (savePreparedInlineMessage) и открывает его через shareMessage.
+// Настройки (все необязательные): APP_LINK — ссылка на приложение (по умолчанию https://t.me/<username бота>), PUBLIC_URL — адрес сайта для картинки,
+// INVITE_TEXT, INVITE_BUTTON — текст сообщения и кнопки. Картинка — файл invite.jpg (или invite.png) рядом с server.js.
+let BOT_USERNAME = process.env.BOT_USERNAME || '';
+const INVITE_IMAGE_URL = 'https://static46.tgcnt.ru/posts/_0/d8/d82d6a965a47e0e72f71cef162707aae.jpg'; // <-- вставьте сюда прямую ссылку на картинку (https://...jpg/png), либо задайте переменную INVITE_IMAGE
+async function botApi(method, params) {
+  const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(params || {}), signal: AbortSignal.timeout(8000)
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!d.ok) throw new Error(d.description || ('HTTP ' + r.status));
+  return d.result;
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
@@ -237,6 +253,32 @@ const server = http.createServer(async (req, res) => {
       await q(`INSERT INTO ma_users (id, name, photo) VALUES ($1, $2, $3)
                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, photo = EXCLUDED.photo, updated_at = now()
                WHERE ma_users.name IS DISTINCT FROM EXCLUDED.name OR ma_users.photo IS DISTINCT FROM EXCLUDED.photo`, [uid, nm, ph]);
+    }
+
+    // Приглашение друзей: готовое сообщение для окна «Отправить сообщение»
+    if (req.method === 'POST' && url.pathname === '/api/invite') {
+      if (!BOT_USERNAME) { try { BOT_USERNAME = (await botApi('getMe')).username || ''; } catch (e) { console.log('[invite] getMe:', e.message); } }
+      const base = process.env.APP_LINK || (BOT_USERNAME ? `https://t.me/${BOT_USERNAME}` : '');
+      if (!base) return send(res, 500, { error: 'Не удалось определить ссылку на приложение' });
+      const link = base + (base.includes('?') ? '&' : '?') + 'startapp=ref_' + uid;
+      const en = (user.language_code || 'ru') === 'en';
+      const text = process.env.INVITE_TEXT || (en ? '⭐ Want me to give you stars and gifts?\n\nGet them every 24 hours in the free roulette!' : '⭐ Хочешь подарю тебе звезды и подарки?\n\nПолучай их каждые 24 часа в бесплатной рулетке!');
+      const btn = process.env.INVITE_BUTTON || (en ? 'Get' : 'Получить');
+      const markup = { inline_keyboard: [[{ text: btn, url: link }]] };
+      const origin = process.env.PUBLIC_URL || `https://${req.headers['x-forwarded-host'] || req.headers.host}`;
+      const imgFile = ['invite.jpg', 'invite.png'].find(f => fs.existsSync(path.join(__dirname, f)));
+      // Картинка по ссылке: INVITE_IMAGE (или константа ниже). Если пусто — берётся invite.jpg/png рядом с server.js
+      const imgUrl = process.env.INVITE_IMAGE || INVITE_IMAGE_URL || (imgFile ? `${origin}/${imgFile}` : '');
+      const result = imgUrl
+        ? { type: 'photo', id: 'invite', photo_url: imgUrl, thumbnail_url: imgUrl, caption: text, reply_markup: markup }
+        : { type: 'article', id: 'invite', title: en ? 'Invitation' : 'Приглашение', input_message_content: { message_text: text }, reply_markup: markup };
+      try {
+        const saved = await botApi('savePreparedInlineMessage', { user_id: Number(uid), result, allow_user_chats: true, allow_bot_chats: false, allow_group_chats: true, allow_channel_chats: false });
+        return send(res, 200, { id: saved.id, link, text });
+      } catch (e) {
+        console.log('[invite] savePreparedInlineMessage:', e.message);
+        return send(res, 200, { link, text }); // запасной вариант: клиент откроет обычную отправку ссылки
+      }
     }
 
     // Таблица лидеров: топ-50 по звёздам + место текущего пользователя (чужие ID не отдаём)
