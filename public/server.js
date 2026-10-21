@@ -1,3 +1,4 @@
+
 // Запуск: BOT_TOKEN=... ADMIN_ID=... DATABASE_URL=postgres://... node server.js   (Node 18+, зависимость: pg)
 // ADMIN_ID — ваш Telegram ID. Только он может добавлять и удалять задания.
 // Проверка заданий: бот должен быть АДМИНИСТРАТОРОМ канала/группы, на которую подписываются.
@@ -269,7 +270,7 @@ const server = http.createServer(async (req, res) => {
       if (!base) return send(res, 500, { error: 'Не удалось определить ссылку на приложение' });
       const link = base + (base.includes('?') ? '&' : '?') + 'startapp=ref_' + uid;
       const en = (user.language_code || 'ru') === 'en';
-      const text = process.env.INVITE_TEXT || (en ? '⭐ Want me to give you stars and gifts?\n\nGet them every 24 hours in the free roulette!' : '⭐ Хочешь подарю тебе звезды и подарки?\n\nПолучай их каждые 24 часа в бесплатной рулетке!');
+      const text = process.env.INVITE_TEXT || (en ? '⭐ Get stars and gifts!\n\nSpin the free case and complete tasks.' : '⭐ Получай звёзды и подарки!\n\nКрути бесплатный кейс и выполняй задания.');
       const btn = process.env.INVITE_BUTTON || (en ? 'Get' : 'Получить');
       const markup = { inline_keyboard: [[{ text: btn, url: link }]] };
       const origin = process.env.PUBLIC_URL || `https://${req.headers['x-forwarded-host'] || req.headers.host}`;
