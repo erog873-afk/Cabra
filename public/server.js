@@ -37,19 +37,19 @@ async function tx(fn) {
 
 // Начислить звёзды + запись в журнал (внутри транзакции). Возвращает новый баланс.
 async function addStars(c, uid, delta, reason, ref) {
-  const r = await c.query('UPDATE users SET stars = ROUND(stars + $2, 2), updated_at = now() WHERE id = $1 RETURNING stars', [uid, delta]);
-  await c.query('INSERT INTO stars_log (user_id, delta, reason, ref) VALUES ($1, $2, $3, $4)', [uid, delta, reason, ref || null]);
+  const r = await c.query('UPDATE ma_users SET stars = ROUND(stars + $2, 2), updated_at = now() WHERE id = $1 RETURNING stars', [uid, delta]);
+  await c.query('INSERT INTO ma_stars_log (user_id, delta, reason, ref) VALUES ($1, $2, $3, $4)', [uid, delta, reason, ref || null]);
   return r.rows[0].stars;
 }
 
 // Таймер лидеров: 7 дней. Когда цикл заканчивается, начинается новый.
 async function cycleEnd() {
   const now = Date.now();
-  const r = await q("SELECT value FROM meta WHERE key = 'leaders_end'");
+  const r = await q("SELECT value FROM ma_meta WHERE key = 'leaders_end'");
   let end = r.rows[0] ? Number(r.rows[0].value) : 0;
   if (!end || end <= now) {
     end = now + WEEK_MS;
-    await q("INSERT INTO meta (key, value) VALUES ('leaders_end', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [String(end)]);
+    await q("INSERT INTO ma_meta (key, value) VALUES ('leaders_end', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [String(end)]);
   }
   return end;
 }
@@ -59,41 +59,41 @@ async function initDb() {
   await q(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
   const readJson = (f, def) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, f), 'utf8')); } catch { return def; } };
 
-  const migrated = await q("SELECT 1 FROM meta WHERE key = 'migrated'");
+  const migrated = await q("SELECT 1 FROM ma_meta WHERE key = 'migrated'");
   if (!migrated.rowCount) {
     await tx(async c => {
       const tasks = readJson('tasks.json', []);
       for (const t of Array.isArray(tasks) ? tasks : []) {
-        await c.query('INSERT INTO tasks (id, title, url, reward, icon) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO NOTHING',
+        await c.query('INSERT INTO ma_tasks (id, title, url, reward, icon) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO NOTHING',
           [String(t.id), String(t.title || ''), String(t.url || ''), Number(t.reward) || 1, String(t.icon || '')]);
       }
-      const ids = new Set((await c.query('SELECT id FROM tasks')).rows.map(r => r.id));
+      const ids = new Set((await c.query('SELECT id FROM ma_tasks')).rows.map(r => r.id));
       const users = readJson('users.json', {});
       for (const [id, u] of Object.entries(users)) {
         if (!/^\d+$/.test(id) || !u) continue;
-        await c.query('INSERT INTO users (id, name, photo, stars) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING',
+        await c.query('INSERT INTO ma_users (id, name, photo, stars) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING',
           [id, String(u.name || ''), String(u.photo || ''), Number(u.stars) || 0]);
         for (const tid of u.done || []) if (ids.has(tid))
-          await c.query('INSERT INTO user_tasks (user_id, task_id, done_at) VALUES ($1,$2,now()) ON CONFLICT DO NOTHING', [id, tid]);
+          await c.query('INSERT INTO ma_user_tasks (user_id, task_id, done_at) VALUES ($1,$2,now()) ON CONFLICT DO NOTHING', [id, tid]);
         for (const [tid, ts] of Object.entries(u.started || {})) if (ids.has(tid))
-          await c.query('INSERT INTO user_tasks (user_id, task_id, started_at) VALUES ($1,$2,to_timestamp($3/1000.0)) ON CONFLICT DO NOTHING', [id, tid, Number(ts) || Date.now()]);
+          await c.query('INSERT INTO ma_user_tasks (user_id, task_id, started_at) VALUES ($1,$2,to_timestamp($3/1000.0)) ON CONFLICT DO NOTHING', [id, tid, Number(ts) || Date.now()]);
         if (Number(u.stars) > 0)
-          await c.query("INSERT INTO stars_log (user_id, delta, reason, ref) VALUES ($1,$2,'import','users.json')", [id, Number(u.stars)]);
+          await c.query("INSERT INTO ma_stars_log (user_id, delta, reason, ref) VALUES ($1,$2,'import','users.json')", [id, Number(u.stars)]);
       }
       const cyc = readJson('leaders-cycle.json', null);
       if (cyc && Number(cyc.end) > Date.now())
-        await c.query("INSERT INTO meta (key, value) VALUES ('leaders_end', $1) ON CONFLICT (key) DO NOTHING", [String(Number(cyc.end))]);
+        await c.query("INSERT INTO ma_meta (key, value) VALUES ('leaders_end', $1) ON CONFLICT (key) DO NOTHING", [String(Number(cyc.end))]);
 
       // Если заданий нет совсем — одно тестовое (удалите его в админ-панели)
-      if (!(await c.query('SELECT 1 FROM tasks LIMIT 1')).rowCount) {
+      if (!(await c.query('SELECT 1 FROM ma_tasks LIMIT 1')).rowCount) {
         let icon = '';
         for (const f of ['index.html', 'tasks.html']) {
           try { icon = fs.readFileSync(path.join(__dirname, f), 'utf8').match(/DEFAULT_ICON\s*=\s*"(data:image\/png;base64,[A-Za-z0-9+\/=]+)"/)[1]; break; } catch {}
         }
-        await c.query('INSERT INTO tasks (id, title, url, reward, icon) VALUES ($1,$2,$3,$4,$5)',
+        await c.query('INSERT INTO ma_tasks (id, title, url, reward, icon) VALUES ($1,$2,$3,$4,$5)',
           ['test-task', 'Тестовое задание', process.env.TEST_CHANNEL || 'https://t.me/your_channel', 1, icon]);
       }
-      await c.query("INSERT INTO meta (key, value) VALUES ('migrated', '1') ON CONFLICT DO NOTHING");
+      await c.query("INSERT INTO ma_meta (key, value) VALUES ('migrated', '1') ON CONFLICT DO NOTHING");
     });
     console.log('[db] инициализация/перенос данных выполнены');
   }
@@ -174,7 +174,7 @@ async function checkLinkni(code, userId) {
   } catch (e) {
     console.log('[linkni] api error:', e.message);
     if (LINKNI_KEY) { // запасной вариант: событие, пришедшее на вебхук за последний час
-      const r = await q("SELECT (extract(epoch FROM max(created_at)) * 1000)::float8 AS ts FROM linkni_events WHERE user_id = $1 AND sell_code = $2 AND status = 'subscribed' AND sub_code = $3 AND created_at > now() - interval '1 hour'", [userId, code, sub]);
+      const r = await q("SELECT (extract(epoch FROM max(created_at)) * 1000)::float8 AS ts FROM ma_linkni_events WHERE user_id = $1 AND sell_code = $2 AND status = 'subscribed' AND sub_code = $3 AND created_at > now() - interval '1 hour'", [userId, code, sub]);
       if (r.rows[0] && r.rows[0].ts) return { ok: true, ts: r.rows[0].ts };
     }
     return { ok: false, error: 'Не удалось проверить задание. Попробуйте позже.' };
@@ -204,7 +204,7 @@ const server = http.createServer(async (req, res) => {
       const d = await body(req);
       const st = String(d.status || '');
       if (/^\d{1,15}$/.test(String(d.user_id)) && ['subscribed', 'not_subscribed', 'no_sponsors'].includes(st)) {
-        await q('INSERT INTO linkni_events (user_id, status, sell_code, sub_code) VALUES ($1,$2,$3,$4)',
+        await q('INSERT INTO ma_linkni_events (user_id, status, sell_code, sub_code) VALUES ($1,$2,$3,$4)',
           [String(d.user_id), st, String(d.sell_code || '').slice(0, 40), String(d.sub_code || '').slice(0, 80)]);
       }
       return send(res, 200, { ok: true });
@@ -234,26 +234,26 @@ const server = http.createServer(async (req, res) => {
     {
       const nm = [user.first_name, user.last_name].filter(Boolean).join(' ').slice(0, 40) || user.username || ('ID ' + uid.slice(-4));
       const ph = typeof user.photo_url === 'string' && /^https:\/\//.test(user.photo_url) ? user.photo_url : '';
-      await q(`INSERT INTO users (id, name, photo) VALUES ($1, $2, $3)
+      await q(`INSERT INTO ma_users (id, name, photo) VALUES ($1, $2, $3)
                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, photo = EXCLUDED.photo, updated_at = now()
-               WHERE users.name IS DISTINCT FROM EXCLUDED.name OR users.photo IS DISTINCT FROM EXCLUDED.photo`, [uid, nm, ph]);
+               WHERE ma_users.name IS DISTINCT FROM EXCLUDED.name OR ma_users.photo IS DISTINCT FROM EXCLUDED.photo`, [uid, nm, ph]);
     }
 
     // Таблица лидеров: топ-50 по звёздам + место текущего пользователя (чужие ID не отдаём)
     if (req.method === 'GET' && url.pathname === '/api/leaders') {
-      const top = (await q('SELECT id::text AS id, name, photo, stars FROM users WHERE stars > 0 ORDER BY stars DESC, created_at ASC LIMIT 50')).rows
+      const top = (await q('SELECT id::text AS id, name, photo, stars FROM ma_users WHERE stars > 0 ORDER BY stars DESC, created_at ASC LIMIT 50')).rows
         .map((x, i) => ({ rank: i + 1, name: x.name || ('ID ' + x.id.slice(-4)), photo: x.photo || '', stars: x.stars, me: x.id === uid }));
-      const mine = (await q('SELECT name, photo, stars FROM users WHERE id = $1', [uid])).rows[0] || { name: '', photo: '', stars: 0 };
-      const total = (await q('SELECT count(*)::int AS n FROM users WHERE stars > 0')).rows[0].n;
-      const rank = mine.stars > 0 ? (await q('SELECT count(*)::int + 1 AS r FROM users WHERE stars > $1', [mine.stars])).rows[0].r : null;
+      const mine = (await q('SELECT name, photo, stars FROM ma_users WHERE id = $1', [uid])).rows[0] || { name: '', photo: '', stars: 0 };
+      const total = (await q('SELECT count(*)::int AS n FROM ma_users WHERE stars > 0')).rows[0].n;
+      const rank = mine.stars > 0 ? (await q('SELECT count(*)::int + 1 AS r FROM ma_users WHERE stars > $1', [mine.stars])).rows[0].r : null;
       return send(res, 200, { top, me: { rank, stars: mine.stars, photo: mine.photo || '', name: mine.name || '' }, total, endsAt: await cycleEnd() });
     }
 
     // Список заданий + баланс и отметки «выполнено» для этого пользователя
     if (req.method === 'GET' && url.pathname === '/api/tasks') {
-      const stars = (await q('SELECT stars FROM users WHERE id = $1', [uid])).rows[0].stars;
+      const stars = (await q('SELECT stars FROM ma_users WHERE id = $1', [uid])).rows[0].stars;
       const tasks = (await q(`SELECT t.id, t.title, t.url, t.reward, t.icon, (ut.done_at IS NOT NULL) AS done
-                              FROM tasks t LEFT JOIN user_tasks ut ON ut.task_id = t.id AND ut.user_id = $1
+                              FROM ma_tasks t LEFT JOIN ma_user_tasks ut ON ut.task_id = t.id AND ut.user_id = $1
                               ORDER BY t.pos`, [uid])).rows;
       return send(res, 200, { tasks: tasks.map(t => ({ ...t, url: linkniUrl(t.url, uid) })).concat(LINKNI_AUTO ? [linkniTask(uid)] : []), isAdmin, stars });
     }
@@ -262,8 +262,8 @@ const server = http.createServer(async (req, res) => {
     const st = url.pathname.match(/^\/api\/tasks\/([\w-]+)\/start$/);
     if (req.method === 'POST' && st && st[1] === 'linkni') return send(res, 200, { ok: true });
     if (req.method === 'POST' && st) {
-      const r = await q('INSERT INTO user_tasks (user_id, task_id) SELECT $1, id FROM tasks WHERE id = $2 ON CONFLICT DO NOTHING RETURNING 1', [uid, st[1]]);
-      if (!r.rowCount && !(await q('SELECT 1 FROM tasks WHERE id = $1', [st[1]])).rowCount) return send(res, 404, { error: 'Задание не найдено' });
+      const r = await q('INSERT INTO ma_user_tasks (user_id, task_id) SELECT $1, id FROM ma_tasks WHERE id = $2 ON CONFLICT DO NOTHING RETURNING 1', [uid, st[1]]);
+      if (!r.rowCount && !(await q('SELECT 1 FROM ma_tasks WHERE id = $1', [st[1]])).rowCount) return send(res, 404, { error: 'Задание не найдено' });
       return send(res, 200, { ok: true });
     }
 
@@ -278,8 +278,8 @@ const server = http.createServer(async (req, res) => {
       if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, error: result.error });
       // Награда — за каждую НОВУЮ подписку (новее предыдущей награждённой), повторно за одну и ту же не выдаётся
       const out = await tx(async c => {
-        const r = await c.query(`INSERT INTO linkni_claims (user_id, last_ts) VALUES ($1, to_timestamp($2 / 1000.0))
-                                 ON CONFLICT (user_id) DO UPDATE SET last_ts = EXCLUDED.last_ts WHERE linkni_claims.last_ts < EXCLUDED.last_ts
+        const r = await c.query(`INSERT INTO ma_linkni_claims (user_id, last_ts) VALUES ($1, to_timestamp($2 / 1000.0))
+                                 ON CONFLICT (user_id) DO UPDATE SET last_ts = EXCLUDED.last_ts WHERE ma_linkni_claims.last_ts < EXCLUDED.last_ts
                                  RETURNING 1`, [uid, result.ts]);
         if (!r.rowCount) return null;
         return { reward: LINKNI_REWARD, stars: await addStars(c, uid, LINKNI_REWARD, 'linkni', LINKNI_CODE) };
@@ -288,10 +288,10 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true, ...out });
     }
     if (req.method === 'POST' && chk) {
-      const task = (await q('SELECT id, url, reward FROM tasks WHERE id = $1', [chk[1]])).rows[0];
+      const task = (await q('SELECT id, url, reward FROM ma_tasks WHERE id = $1', [chk[1]])).rows[0];
       if (!task) return send(res, 404, { error: 'Задание не найдено' });
-      const ut = (await q('SELECT started_at, done_at FROM user_tasks WHERE user_id = $1 AND task_id = $2', [uid, task.id])).rows[0];
-      if (ut && ut.done_at) return send(res, 200, { ok: true, already: true, stars: (await q('SELECT stars FROM users WHERE id = $1', [uid])).rows[0].stars });
+      const ut = (await q('SELECT started_at, done_at FROM ma_user_tasks WHERE user_id = $1 AND task_id = $2', [uid, task.id])).rows[0];
+      if (ut && ut.done_at) return send(res, 200, { ok: true, already: true, stars: (await q('SELECT stars FROM ma_users WHERE id = $1', [uid])).rows[0].stars });
       if (!ut || Date.now() - ut.started_at.getTime() < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
       const lcode = linkniCode(task.url);
       if (lcode) {
@@ -303,8 +303,8 @@ const server = http.createServer(async (req, res) => {
       }
       // Атомарно: отметка «выполнено» и начисление — только если ещё не выполнено (защита от двойных запросов)
       const out = await tx(async c => {
-        const r = await c.query('UPDATE user_tasks SET done_at = now() WHERE user_id = $1 AND task_id = $2 AND done_at IS NULL RETURNING 1', [uid, task.id]);
-        if (!r.rowCount) return { already: true, stars: (await c.query('SELECT stars FROM users WHERE id = $1', [uid])).rows[0].stars };
+        const r = await c.query('UPDATE ma_user_tasks SET done_at = now() WHERE user_id = $1 AND task_id = $2 AND done_at IS NULL RETURNING 1', [uid, task.id]);
+        if (!r.rowCount) return { already: true, stars: (await c.query('SELECT stars FROM ma_users WHERE id = $1', [uid])).rows[0].stars };
         return { reward: task.reward, stars: await addStars(c, uid, task.reward, 'task', task.id) };
       });
       return send(res, 200, { ok: true, ...out });
@@ -323,13 +323,13 @@ const server = http.createServer(async (req, res) => {
       if (!/^https:\/\//.test(link) || link.length > 500) return send(res, 400, { error: 'Некорректная ссылка' });
       if (!(reward > 0 && reward <= 100000)) return send(res, 400, { error: 'Некорректная награда' });
       if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(icon) || icon.length > 200000) return send(res, 400, { error: 'Некорректная иконка' });
-      await q('INSERT INTO tasks (id, title, url, reward, icon) VALUES ($1,$2,$3,$4,$5)', [crypto.randomUUID(), title, link, reward, icon]);
+      await q('INSERT INTO ma_tasks (id, title, url, reward, icon) VALUES ($1,$2,$3,$4,$5)', [crypto.randomUUID(), title, link, reward, icon]);
       return send(res, 200, { ok: true });
     }
 
     const del = url.pathname.match(/^\/api\/admin\/tasks\/([\w-]+)$/);
     if (req.method === 'DELETE' && del) {
-      await q('DELETE FROM tasks WHERE id = $1', [del[1]]);
+      await q('DELETE FROM ma_tasks WHERE id = $1', [del[1]]);
       return send(res, 200, { ok: true });
     }
     send(res, 404, { error: 'Не найдено' });
