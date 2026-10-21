@@ -169,7 +169,7 @@ async function checkLinkni(code, userId) {
     const mine = (Array.isArray(arr) ? arr : []).filter(x => x && String(x.user_id) === String(userId));
     const subs = mine.filter(x => x.status === 'subscribed');
     if (subs.length) return { ok: true, ts: Math.max(...subs.map(x => Date.parse(x.timestamp) || Date.now())) };
-    if (mine.some(x => x.status === 'no_sponsors')) return { ok: false, error: 'Сейчас нет доступных спонсоров. Попробуйте позже.' };
+    if (mine.some(x => x.status === 'no_sponsors')) return { ok: false, noSponsors: true, error: 'Сейчас нет заданий от спонсоров. Попробуйте позже.' };
     return { ok: false, notDone: true, error: 'Вы не выполнили задание' };
   } catch (e) {
     console.log('[linkni] api error:', e.message);
@@ -275,7 +275,7 @@ const server = http.createServer(async (req, res) => {
       if (Date.now() - last < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
       linkniLast.set(uid, Date.now());
       const result = await checkLinkni(LINKNI_CODE, user.id);
-      if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, error: result.error });
+      if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, noSponsors: !!result.noSponsors, error: result.error });
       // Награда — за каждую НОВУЮ подписку (новее предыдущей награждённой), повторно за одну и ту же не выдаётся
       const out = await tx(async c => {
         const r = await c.query(`INSERT INTO ma_linkni_claims (user_id, last_ts) VALUES ($1, to_timestamp($2 / 1000.0))
@@ -296,10 +296,10 @@ const server = http.createServer(async (req, res) => {
       const lcode = linkniCode(task.url);
       if (lcode) {
         const result = await checkLinkni(lcode, user.id);
-        if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, error: result.error });
+        if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, noSponsors: !!result.noSponsors, error: result.error });
       } else if (STRICT_CHECK) {
         const result = await checkSubscription(task.url, user.id);
-        if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, error: result.error });
+        if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, noSponsors: !!result.noSponsors, error: result.error });
       }
       // Атомарно: отметка «выполнено» и начисление — только если ещё не выполнено (защита от двойных запросов)
       const out = await tx(async c => {
