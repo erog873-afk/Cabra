@@ -77,10 +77,6 @@ async function initDb() {
           await c.query('INSERT INTO user_tasks (user_id, task_id, done_at) VALUES ($1,$2,now()) ON CONFLICT DO NOTHING', [id, tid]);
         for (const [tid, ts] of Object.entries(u.started || {})) if (ids.has(tid))
           await c.query('INSERT INTO user_tasks (user_id, task_id, started_at) VALUES ($1,$2,to_timestamp($3/1000.0)) ON CONFLICT DO NOTHING', [id, tid, Number(ts) || Date.now()]);
-        for (const oid of u.tgDone || [])
-          await c.query("INSERT INTO tgrass_offers (user_id, offer_id, status, done_at) VALUES ($1,$2,'done',now()) ON CONFLICT DO NOTHING", [id, oid]);
-        for (const oid of u.tgPending || [])
-          await c.query("INSERT INTO tgrass_offers (user_id, offer_id) VALUES ($1,$2) ON CONFLICT DO NOTHING", [id, oid]);
         if (Number(u.stars) > 0)
           await c.query("INSERT INTO stars_log (user_id, delta, reason, ref) VALUES ($1,$2,'import','users.json')", [id, Number(u.stars)]);
       }
@@ -143,60 +139,46 @@ async function checkSubscription(link, userId) {
   }
 }
 
-// ---------- Tgrass ----------
-// Ключ задайте переменной TGRASS_API_KEY. Награда за каждое задание — TGRASS_REWARD (по умолчанию 1).
-const TGRASS_API_URL = 'https://tgrass.space/offers';
-const TGRASS_API_KEY = process.env.TGRASS_API_KEY || '';
-const TGRASS_REWARD = Number(process.env.TGRASS_REWARD) || 1;
-const tgId = link => 'tg-' + crypto.createHash('sha1').update(String(link)).digest('hex').slice(0, 12);
+// ---------- Linkni: подписки на спонсоров ----------
+// Ссылка задания: https://t.me/linknibot/app?startapp=x_КОД  (КОД — sell code из кабинета Linkni, например 3cfkf).
+// Каждому человеку к ссылке добавляется свой sub code (u<ID>), по нему сервер находит именно его подписку.
+// Проверка: запрос к API Linkni (подписки за последний час). Вебхук POST /webhook сохраняет события; если задан
+// LINKNI_WEBHOOK_KEY, укажите в кабинете адрес https://ваш-сервер/webhook?key=ВАШ_КЛЮЧ — без ключа вебхук не принимается.
+const LINKNI_RE = /^https:\/\/(?:t|telegram)\.me\/linknibot\/app\?startapp=x_([A-Za-z0-9]+)(?:_[A-Za-z0-9-]*)?$/i;
+const LINKNI_KEY = process.env.LINKNI_WEBHOOK_KEY || '';
+// Автоматическое задание «Подписаться на спонсоров»: показывается всем и повторяется — каждый раз Linkni даёт новых спонсоров.
+// Ваш код Linkni (sell code) — LINKNI_CODE (по умолчанию 3cfkf; LINKNI_CODE=off — отключить). Награда за каждое выполнение — LINKNI_REWARD (0.3).
+const LINKNI_CODE = (process.env.LINKNI_CODE || '3cfkf').trim();
+const LINKNI_AUTO = LINKNI_CODE !== '' && LINKNI_CODE.toLowerCase() !== 'off';
+const LINKNI_REWARD = Number(process.env.LINKNI_REWARD) || 0.3;
+const LINKNI_TITLE = process.env.LINKNI_TITLE || 'Подписаться на спонсоров';
+const linkniLast = new Map();
+const linkniCode = u => { const m = String(u).match(LINKNI_RE); return m ? m[1] : null; };
+const linkniSub = uid => 'u' + uid;
+const linkniUrl = (u, uid) => { const c = linkniCode(u); return c ? `https://t.me/linknibot/app?startapp=x_${c}_${linkniSub(uid)}` : u; };
 
-// Запрос к Tgrass. Возвращает JSON ответа или null (ошибка/нет ключа).
-// Запрос к Tgrass. Возвращает JSON ответа или null (ошибка/нет ключа).
-async function tgrassFetch(user) {
-  if (!TGRASS_API_KEY) return null;
+const linkniTask = uid => ({ id: 'linkni', title: LINKNI_TITLE, url: linkniUrl(`https://t.me/linknibot/app?startapp=x_${LINKNI_CODE}`, uid), reward: LINKNI_REWARD, icon: '', done: false, auto: true });
+
+async function checkLinkni(code, userId) {
+  const sub = linkniSub(userId);
   try {
-    const r = await fetch(TGRASS_API_URL, {
-      method: 'POST',
-      headers: { accept: 'application/json', 'Content-Type': 'application/json', Auth: TGRASS_API_KEY },
-      body: JSON.stringify({
-        tg_user_id: Number(user.id),
-        tg_login: user.username || null,
-        lang: user.language_code || 'ru',
-        is_premium: !!user.is_premium
-      }),
-      signal: AbortSignal.timeout(10000)
-    });
-    if (!r.ok) { console.log('[tgrass] HTTP', r.status); return null; }
-    return await r.json();
-  } catch (e) { console.log('[tgrass] error:', e.message); return null; }
-}
-
-// Задания Tgrass для списка. Запоминаем, какие офферы показали (pending): награда выдаётся только за них.
-async function tgrassTasks(user, uid) {
-  const d = await tgrassFetch(user);
-  if (!d) return [];
-  const doneSet = new Set((await q("SELECT offer_id FROM tgrass_offers WHERE user_id = $1 AND status = 'done'", [uid])).rows.map(r => r.offer_id));
-  const ru = (user.language_code || 'ru') !== 'en';
-  const names = ru
-    ? { channel: 'Подписаться на канал', bot: 'Запустить бота', other: 'Выполнить задание' }
-    : { channel: 'Subscribe to channel', bot: 'Start the bot', other: 'Complete the task' };
-  let list = [];
-  if (d.status === 'not_ok') {
-    list = (d.offers || [])
-      .filter(o => o && /^https:\/\//.test(String(o.link)))
-      .map(o => ({
-        id: tgId(o.link),
-        title: String(o.name || o.title || names[o.type] || names.other).slice(0, 80),
-        url: o.link, reward: TGRASS_REWARD, icon: '', done: false, partner: true
-      }))
-      .filter(t => !doneSet.has(t.id));
+    const r = await fetch(`https://go.linkni.me/api/subscriptions?code=${encodeURIComponent(code)}&user_id=${Number(userId)}&sub_code=${encodeURIComponent(sub)}`,
+      { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const arr = await r.json();
+    const mine = (Array.isArray(arr) ? arr : []).filter(x => x && String(x.user_id) === String(userId));
+    const subs = mine.filter(x => x.status === 'subscribed');
+    if (subs.length) return { ok: true, ts: Math.max(...subs.map(x => Date.parse(x.timestamp) || Date.now())) };
+    if (mine.some(x => x.status === 'no_sponsors')) return { ok: false, error: 'Сейчас нет доступных спонсоров. Попробуйте позже.' };
+    return { ok: false, notDone: true, error: 'Вы не выполнили задание' };
+  } catch (e) {
+    console.log('[linkni] api error:', e.message);
+    if (LINKNI_KEY) { // запасной вариант: событие, пришедшее на вебхук за последний час
+      const r = await q("SELECT (extract(epoch FROM max(created_at)) * 1000)::float8 AS ts FROM linkni_events WHERE user_id = $1 AND sell_code = $2 AND status = 'subscribed' AND sub_code = $3 AND created_at > now() - interval '1 hour'", [userId, code, sub]);
+      if (r.rows[0] && r.rows[0].ts) return { ok: true, ts: r.rows[0].ts };
+    }
+    return { ok: false, error: 'Не удалось проверить задание. Попробуйте позже.' };
   }
-  const ids = list.map(t => t.id);
-  await tx(async c => {
-    await c.query("DELETE FROM tgrass_offers WHERE user_id = $1 AND status = 'pending' AND offer_id <> ALL($2::text[])", [uid, ids]);
-    for (const id of ids) await c.query("INSERT INTO tgrass_offers (user_id, offer_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [uid, id]);
-  });
-  return list;
 }
 
 const MIME = {
@@ -216,6 +198,18 @@ const body = req => new Promise((ok, no) => {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
+    // Вебхук Linkni: POST /webhook  {"user_id":..,"status":"subscribed|not_subscribed|no_sponsors","sell_code":"..","sub_code":".."}
+    if (req.method === 'POST' && url.pathname === '/webhook') {
+      if (LINKNI_KEY && url.searchParams.get('key') !== LINKNI_KEY) return send(res, 403, { error: 'Нет доступа' });
+      const d = await body(req);
+      const st = String(d.status || '');
+      if (/^\d{1,15}$/.test(String(d.user_id)) && ['subscribed', 'not_subscribed', 'no_sponsors'].includes(st)) {
+        await q('INSERT INTO linkni_events (user_id, status, sell_code, sub_code) VALUES ($1,$2,$3,$4)',
+          [String(d.user_id), st, String(d.sell_code || '').slice(0, 40), String(d.sub_code || '').slice(0, 80)]);
+      }
+      return send(res, 200, { ok: true });
+    }
+
     // Статика: index.html и подключаемые к нему файлы (cases-store.js, balance-widget.js, roulette.html, картинки...).
     // Служебные файлы (server.js, package.json, *.json с данными) отдавать нельзя.
     if (!url.pathname.startsWith('/api/')) {
@@ -261,13 +255,12 @@ const server = http.createServer(async (req, res) => {
       const tasks = (await q(`SELECT t.id, t.title, t.url, t.reward, t.icon, (ut.done_at IS NOT NULL) AS done
                               FROM tasks t LEFT JOIN user_tasks ut ON ut.task_id = t.id AND ut.user_id = $1
                               ORDER BY t.pos`, [uid])).rows;
-      const partner = await tgrassTasks(user, uid);
-      return send(res, 200, { tasks: tasks.concat(partner), isAdmin, stars });
+      return send(res, 200, { tasks: tasks.map(t => ({ ...t, url: linkniUrl(t.url, uid) })).concat(LINKNI_AUTO ? [linkniTask(uid)] : []), isAdmin, stars });
     }
 
     // Человек нажал «Начать»: запоминаем момент
     const st = url.pathname.match(/^\/api\/tasks\/([\w-]+)\/start$/);
-    if (req.method === 'POST' && st && st[1].startsWith('tg-')) return send(res, 200, { ok: true });
+    if (req.method === 'POST' && st && st[1] === 'linkni') return send(res, 200, { ok: true });
     if (req.method === 'POST' && st) {
       const r = await q('INSERT INTO user_tasks (user_id, task_id) SELECT $1, id FROM tasks WHERE id = $2 ON CONFLICT DO NOTHING RETURNING 1', [uid, st[1]]);
       if (!r.rowCount && !(await q('SELECT 1 FROM tasks WHERE id = $1', [st[1]])).rowCount) return send(res, 404, { error: 'Задание не найдено' });
@@ -276,20 +269,22 @@ const server = http.createServer(async (req, res) => {
 
     // Проверка выполнения задания
     const chk = url.pathname.match(/^\/api\/tasks\/([\w-]+)\/check$/);
-    if (req.method === 'POST' && chk && chk[1].startsWith('tg-')) {
-      const notDone = { ok: false, notDone: true, error: 'Вы не выполнили задание' };
-      const pend = (await q("SELECT count(*)::int AS n FROM tgrass_offers WHERE user_id = $1 AND status = 'pending'", [uid])).rows[0].n;
-      if (!pend) return send(res, 200, notDone);
-      const d = await tgrassFetch(user);
-      if (!d) return send(res, 200, { ok: false, error: 'Не удалось проверить задание. Попробуйте позже.' });
-      if (d.status !== 'ok') return send(res, 200, notDone);
-      // Tgrass подтвердил выполнение. Награда — за показанные офферы, повторно не выдаётся.
+    if (req.method === 'POST' && chk && chk[1] === 'linkni') {
+      if (!LINKNI_AUTO) return send(res, 404, { error: 'Задание не найдено' });
+      const last = linkniLast.get(uid) || 0;               // не чаще раза в 3 секунды на человека
+      if (Date.now() - last < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
+      linkniLast.set(uid, Date.now());
+      const result = await checkLinkni(LINKNI_CODE, user.id);
+      if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, error: result.error });
+      // Награда — за каждую НОВУЮ подписку (новее предыдущей награждённой), повторно за одну и ту же не выдаётся
       const out = await tx(async c => {
-        const r = await c.query("UPDATE tgrass_offers SET status = 'done', done_at = now() WHERE user_id = $1 AND status = 'pending' RETURNING offer_id", [uid]);
-        if (!r.rowCount) return { already: true, stars: (await c.query('SELECT stars FROM users WHERE id = $1', [uid])).rows[0].stars };
-        const reward = round2(r.rowCount * TGRASS_REWARD);
-        return { reward, stars: await addStars(c, uid, reward, 'tgrass', r.rows.map(x => x.offer_id).join(',').slice(0, 200)) };
+        const r = await c.query(`INSERT INTO linkni_claims (user_id, last_ts) VALUES ($1, to_timestamp($2 / 1000.0))
+                                 ON CONFLICT (user_id) DO UPDATE SET last_ts = EXCLUDED.last_ts WHERE linkni_claims.last_ts < EXCLUDED.last_ts
+                                 RETURNING 1`, [uid, result.ts]);
+        if (!r.rowCount) return null;
+        return { reward: LINKNI_REWARD, stars: await addStars(c, uid, LINKNI_REWARD, 'linkni', LINKNI_CODE) };
       });
+      if (!out) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
       return send(res, 200, { ok: true, ...out });
     }
     if (req.method === 'POST' && chk) {
@@ -298,7 +293,11 @@ const server = http.createServer(async (req, res) => {
       const ut = (await q('SELECT started_at, done_at FROM user_tasks WHERE user_id = $1 AND task_id = $2', [uid, task.id])).rows[0];
       if (ut && ut.done_at) return send(res, 200, { ok: true, already: true, stars: (await q('SELECT stars FROM users WHERE id = $1', [uid])).rows[0].stars });
       if (!ut || Date.now() - ut.started_at.getTime() < MIN_WAIT_MS) return send(res, 200, { ok: false, notDone: true, error: 'Вы не выполнили задание' });
-      if (STRICT_CHECK) {
+      const lcode = linkniCode(task.url);
+      if (lcode) {
+        const result = await checkLinkni(lcode, user.id);
+        if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, error: result.error });
+      } else if (STRICT_CHECK) {
         const result = await checkSubscription(task.url, user.id);
         if (!result.ok) return send(res, 200, { ok: false, notDone: !!result.notDone, error: result.error });
       }
