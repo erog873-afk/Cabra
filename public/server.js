@@ -1,4 +1,3 @@
-
 // Запуск: BOT_TOKEN=... ADMIN_ID=... DATABASE_URL=postgres://... node server.js   (Node 18+, зависимость: pg)
 // ADMIN_ID — ваш Telegram ID. Только он может добавлять и удалять задания.
 // Проверка заданий: бот должен быть АДМИНИСТРАТОРОМ канала/группы, на которую подписываются.
@@ -253,6 +252,14 @@ const server = http.createServer(async (req, res) => {
       await q(`INSERT INTO ma_users (id, name, photo) VALUES ($1, $2, $3)
                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, photo = EXCLUDED.photo, updated_at = now()
                WHERE ma_users.name IS DISTINCT FROM EXCLUDED.name OR ma_users.photo IS DISTINCT FROM EXCLUDED.photo`, [uid, nm, ph]);
+    }
+
+    // Реферальная ссылка и счётчики (учёт приглашённых пока не ведётся — возвращаем нули)
+    if (req.method === 'GET' && url.pathname === '/api/referrals') {
+      if (!BOT_USERNAME) { try { BOT_USERNAME = (await botApi('getMe')).username || ''; } catch (e) { console.log('[ref] getMe:', e.message); } }
+      const base = process.env.APP_LINK || (BOT_USERNAME ? `https://t.me/${BOT_USERNAME}` : '');
+      if (!base) return send(res, 500, { error: 'Не удалось определить ссылку на приложение' });
+      return send(res, 200, { link: base + (base.includes('?') ? '&' : '?') + 'startapp=ref_' + uid, invited: 0, earned: 0 });
     }
 
     // Приглашение друзей: готовое сообщение для окна «Отправить сообщение»
